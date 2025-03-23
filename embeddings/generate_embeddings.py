@@ -71,7 +71,7 @@ def generate_embeddings(args: argparse.Namespace):
                     )
                 )
 
-        # Chunk data into 4 groups to process in parallel.
+        # Chunk data into 100 groups to process in parallel.
         n_chunks = 100
         # Define chunk size so all groups have about the same number of elements, except the
         # last group which will be slightly smaller.
@@ -107,7 +107,7 @@ def generate_embeddings(args: argparse.Namespace):
         minn=2,         # smallest subtoken n-grams to generate
         maxn=5,         # largest subtoken n-grams to generate
         minCount=3,     # only include tokens that occur at least this many times
-        dim=10,         # model dimensions
+        dim=300,         # model dimensions
         epoch=30,       # training epochs
         lr=0.01,        # learning rate, between 0 and 1
         wordNgrams=3,   # length of word n-grams
