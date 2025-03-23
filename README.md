@@ -1,8 +1,8 @@
 # Recipe Ingredient Embeddings
 
-Word embeddings model trained on recipe ingredients.
+A word embeddings model trained on recipe ingredients.
 
-This repository contains the code used to train an embeddings model specifically for use with recipe ingredients. The [floret](https://github.com/explosion/floret) library is used to create the embeddings using the recipe in the [RecipeNLG](https://www.kaggle.com/datasets/saldenisov/recipenlg/data) corpus.
+This repository contains the code used to train an embeddings model specifically for use with recipe ingredients. The [floret](https://github.com/explosion/floret) library is used to create the embeddings using the recipes in the [RecipeNLG](https://www.kaggle.com/datasets/saldenisov/recipenlg/data) corpus.
 
 The code here should be readily adaptable to using other libraries to create the embeddings model, such as FastText or Word2Vec.
 
