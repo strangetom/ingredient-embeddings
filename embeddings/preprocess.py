@@ -1,13 +1,11 @@
 #!/usr/bin/env/python3
 
 import re
-import string
 from itertools import chain
 from functools import lru_cache
+from html import unescape
 
 import nltk.stem.porter as nsp
-from nltk import pos_tag
-from nltk.corpus import stopwords
 
 
 STEMMER = nsp.PorterStemmer()
@@ -22,24 +20,14 @@ PUNCTUATION_TOKENISER = re.compile(r"([\(\)\[\]\{\}\,/:;\?\!\*\~])")
 # is preceded by a a full stop then a word character.
 FULL_STOP_TOKENISER = re.compile(r"(?<!\.\w)(\.)$")
 
-STOP_WORDS = stopwords.words("english")
-
-ALLOWED_POS_TAGS = {
-    "NN",
-    "NNS",
-    "NNP",
-    "NNPS",
-    "JJ",
-    "JJR",
-    "JJS",
-    "VB",
-    "VBD",
-    "VBG",
-    "VBN",
-    "VBP",
-    "VBZ",
-    "FW",
-}
+HTML_TAGS = re.compile(r"<([^>]+)>", re.UNICODE)
+URL_HTTP = re.compile(r"(https?://\S+)", re.UNICODE)
+URL_WWW = re.compile(r"(www\.\S+)", re.UNICODE)
+NUMERIC = re.compile(r"([0-9\-\.\/])+", re.UNICODE)
+CURRENCY = re.compile(r"([#£$]\S+)\b", re.UNICODE)  # use spacy's token.like_currency
+LQUOTE = re.compile(r"\s\"", re.UNICODE)
+RQUOTE = re.compile(r"\"\s", re.UNICODE)
+MULTPLE_WHITESPACE = re.compile(r"(\s)+ ", re.UNICODE)
 
 
 def tokenize(sentence: str) -> list[str]:
@@ -95,7 +83,7 @@ def tokenize(sentence: str) -> list[str]:
 
 
 @lru_cache(maxsize=512)
-def stem(token: str, to_lowecase: bool) -> str:
+def stem(token: str) -> str:
     """Stem function with cache to improve performance.
 
     The stem of a word output by the PorterStemmer is always the same, so we can
@@ -112,10 +100,127 @@ def stem(token: str, to_lowecase: bool) -> str:
     str
         Stem of token
     """
-    return STEMMER.stem(token, to_lowercase=to_lowecase)
+    return STEMMER.stem(token)
 
 
-def preprocess_recipe(recipe: str) -> list[str]:
+def remove_html_tags(recipe: str) -> str:
+    """Remove HTML tags and their contents from recipe.
+
+    Parameters
+    ----------
+    recipe : str
+        Recipe, as string.
+
+    Returns
+    -------
+    str
+        Recipe, with HTML tags removed.
+    """
+    return HTML_TAGS.sub(" ", recipe)
+
+
+def remove_urls(recipe: str) -> str:
+    """Remove URLs from recipe.
+
+    Assumes remove_html_tags has already been run on recipe.
+
+    Parameters
+    ----------
+    recipe : str
+        Recipe, as string.
+
+    Returns
+    -------
+    str
+        Recipe, with URLs removed.
+    """
+    recipe = URL_HTTP.sub(" ", recipe)
+    recipe = URL_WWW.sub(" ", recipe)
+    return recipe
+
+
+def remove_numeric(recipe: str) -> str:
+    """Remove numeric words from recipe.
+
+    This includes numbers (e.g. 1, 215), decimals (e.g. 0.2) and ranges (e.g. 1-2).
+
+    Parameters
+    ----------
+    recipe : str
+        Recipe, as string.
+
+    Returns
+    -------
+    str
+        Recipe with numeric words removed.
+    """
+    return NUMERIC.sub(" ", recipe)
+
+
+def remove_currency(recipe: str) -> str:
+    """Remove currency words from recipe.
+
+    e.g. £12.25, $100 etc.
+
+    Parameters
+    ----------
+    recipe : str
+        Recipe, as string
+
+    Returns
+    -------
+    str
+        Recipe with currency tokens removed
+    """
+    return CURRENCY.sub(" ", recipe)
+
+
+def remove_quotes(recipe: str) -> str:
+    """Remove quotes from start or end of word.
+
+    Parameters
+    ----------
+    recipe : str
+        Recipe, as string
+
+    Returns
+    -------
+    str
+        Recipe with quote symbols removed
+    """
+    recipe = LQUOTE.sub(" ", recipe)
+    recipe = RQUOTE.sub(" ", recipe)
+    return recipe
+
+
+def remove_multiple_whitespace(recipe: str) -> str:
+    """Remove repeating consecutive whitespace characters and replace in single space.
+
+    Parameters
+    ----------
+    recipe : str
+        Recipe, as string
+
+    Returns
+    -------
+    str
+        Recipe with repeating whitespace removed.
+    """
+    return MULTPLE_WHITESPACE.sub(" ", recipe)
+
+
+CLEAN_FUNCS = [
+    unescape,
+    remove_html_tags,
+    remove_urls,
+    remove_currency,
+    remove_numeric,
+    remove_quotes,
+    remove_multiple_whitespace,
+]
+
+
+def preprocess_recipe(recipe: str) -> str:
     """Preprocess recipe for embeddings training.
 
     Each recipe is the combination of the ingredients and instructions.
@@ -135,20 +240,7 @@ def preprocess_recipe(recipe: str) -> list[str]:
     list[str]
         Preprocessed recipe.
     """
-    tokens = tokenize(recipe)
+    for func in CLEAN_FUNCS:
+        recipe = func(recipe)
 
-    return [
-        stem(str(token), to_lowecase=True)
-        for token, pos in pos_tag(tokens)
-        if pos in ALLOWED_POS_TAGS 
-        and token not in string.punctuation
-        and not token.isdigit()
-        and not token.isnumeric()
-        and not token.isspace()
-        and token not in STOP_WORDS
-        and len(token) > 1  # avoid leftover units e.g. 'c''
-    ]
-
-
-def preprocess_recipes(recipes: list[str]) -> list[str]:
-    return [" ".join(preprocess_recipe(recipe)) for recipe in recipes]
+    return recipe
