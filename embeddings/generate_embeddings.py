@@ -1,14 +1,93 @@
 #!/usr/bin/env/python3
 
 import argparse
+import concurrent.futures as cf
 import sys
 import tempfile
 from pathlib import Path
 
 import floret
+from tqdm import tqdm
 
-from embeddings.data import load_recipes, download_recipenlg_dataset, tokenize_recipes
-from embeddings.generate_bigrams import train_bigram_model_nouns
+from embeddings.bigrams import BigramModel
+from embeddings.data import (
+    TokenizedRecipe,
+    chunked,
+    load_recipes,
+    download_recipenlg_dataset,
+    tokenize_recipes,
+)
+
+
+def join_bigrams_in_recipes(
+    recipes: list[TokenizedRecipe], b: BigramModel
+) -> list[str]:
+    """Use bigram model to join bigram tokens in recipe ingredients and instructions.
+
+    Each recipe is returned as a single str, created by joining the ingredient then
+    instructions tokens with a space, after joining bigrams with an underscore.
+
+    Parameters
+    ----------
+    recipes : list[TokenizedRecipe]
+        List of TokenizedRecipes to join bigrams for.
+    b : BigramModel
+        Bigram model.
+
+    Returns
+    -------
+    list[str]
+        List of recipe strings.
+    """
+    joined_recipes = []
+    for recipe in recipes:
+        ingredients = [
+            ingred
+            for ingredient in recipe.ingredients
+            for ingred in b.join_bigrams(ingredient)
+            if ingred
+        ]
+        instructions = [
+            instruct
+            for instruction in recipe.instructions
+            for instruct in b.join_bigrams(instruction)
+            if instruct
+        ]
+        joined_recipes.append(" ".join(ingredients + instructions))
+    return joined_recipes
+
+
+def flatten_recipes(tokenize_recipes: list[TokenizedRecipe]) -> list[str]:
+    """Flatten recipes by joining bigram tokens with an underscore, then joining all
+    tokens with a space into a single string.
+
+    Parameters
+    ----------
+    recipes : list[TokenizedRecipe]
+        List of recipes.
+
+    Returns
+    -------
+    list[str]
+        List of flattened recipes.
+    """
+    # Chunk data into 100 groups to process in parallel.
+    n_chunks = 100
+    # Define chunk size so all groups have about the same number of elements, except the
+    # last group which will be slightly smaller.
+    chunk_size = int((len(tokenize_recipes) + n_chunks) / n_chunks)
+    chunks = chunked(tokenize_recipes, chunk_size)
+
+    bm = BigramModel("bigrams.csv")
+
+    flattened_recipes = []
+    print("Flattening recipes...")
+    with cf.ProcessPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(join_bigrams_in_recipes, c, bm) for c in chunks]
+        for future in tqdm(cf.as_completed(futures), total=len(futures)):
+            flattened_recipes.extend(future.result())
+
+    return flattened_recipes
 
 
 def generate_embeddings(args: argparse.Namespace):
@@ -23,24 +102,11 @@ def generate_embeddings(args: argparse.Namespace):
 
         recipes = load_recipes(args.source)
         tokenized_recipes = tokenize_recipes(recipes)
-
-        train_bigram_model_nouns(tokenized_recipes, 0.0001)
+        flattened_recipes = flatten_recipes(tokenized_recipes)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            for recipe in tokenized_recipes:
-                ingredients = [
-                    ingred
-                    for ingredient in recipe.ingredients
-                    for ingred in ingredient
-                    if ingred
-                ]
-                instructions = [
-                    instruct
-                    for instruction in recipe.instructions
-                    for instruct in instruction
-                    if instruct
-                ]
-                f.write(" ".join(ingredients + instructions))
+            for recipe in flattened_recipes:
+                f.write(recipe)
                 f.write("\n")
 
             training_file = f.name

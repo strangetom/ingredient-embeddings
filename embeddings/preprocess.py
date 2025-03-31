@@ -25,8 +25,8 @@ URL_HTTP = re.compile(r"(https?://\S+)", re.UNICODE)
 URL_WWW = re.compile(r"(www\.\S+)", re.UNICODE)
 NUMERIC = re.compile(r"([0-9\-\.\/])+", re.UNICODE)
 CURRENCY = re.compile(r"([#£$]\S+)\b", re.UNICODE)  # use spacy's token.like_currency
-LQUOTE = re.compile(r"\s\"", re.UNICODE)
-RQUOTE = re.compile(r"\"\s", re.UNICODE)
+LQUOTE = re.compile(r"\s[\"\']", re.UNICODE)
+RQUOTE = re.compile(r"[\"\']\s", re.UNICODE)
 MULTPLE_WHITESPACE = re.compile(r"(\s)+ ", re.UNICODE)
 
 

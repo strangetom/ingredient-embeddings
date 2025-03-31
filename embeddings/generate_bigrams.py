@@ -1,30 +1,32 @@
 #!/usr/bin/env/python3
 
+import argparse
 from collections import Counter
+from pathlib import Path
 
 import nltk
 
-from embeddings.data import TokenizedRecipe
+from embeddings.data import (
+    TokenizedRecipe,
+    load_recipes,
+    download_recipenlg_dataset,
+    tokenize_recipes,
+)
 
 
-def train_bigram_model_nltk(tokenized_recipes: list[TokenizedRecipe]) -> None:
-    """Extract bigrrams from tokenized recipes.
+def generate_bigrams(args: argparse.Namespace):
+    if not args.source and not args.training:
+        raise ValueError("Supply either the source file or training file.")
 
-    Parameters
-    ----------
-    tokenized_recipes : list[TokenizedRecipe]
-        List of tokenized recipes
-    """
-    print("Preparing for bigram model training...")
-    bigram_measures = nltk.collocations.BigramAssocMeasures()
-    print("Training bigram model...")
-    finder = nltk.collocations.BigramCollocationFinder.from_documents(
-        recipe.instructions for recipe in tokenized_recipes
-    )
-    with open("bigrams.csv", "w") as f:
-        # Keep bigrams that occur in 5% of recipes
-        for bigram in finder.above_score(bigram_measures.raw_freq, 0.0001):
-            f.write(",".join(bigram) + "\n")
+    if not args.training:
+        # If source file doesn't exist, download it
+        source_path = Path(args.source)
+        if not source_path.is_file():
+            download_recipenlg_dataset(args.source)
+
+        recipes = load_recipes(args.source)
+        tokenized_recipes = tokenize_recipes(recipes)
+        train_bigram_model_nouns(tokenized_recipes, 0.00005)
 
 
 def train_bigram_model_nouns(
@@ -41,6 +43,7 @@ def train_bigram_model_nouns(
         If integer, this refers to the absolute count.
         If float, this refers the fraction of total bigrams.
     """
+    print("Identifying bigrams...")
     bigram_dist = []
     for recipe in tokenized_recipes:
         for tokens, pos_tags in zip(recipe.instructions, recipe.instructions_pos):
@@ -57,6 +60,7 @@ def train_bigram_model_nouns(
         key: value for key, value in bigram_fdist.items() if value >= freq_filter
     }
 
+    print("Bigrams saved to bigrams.csv")
     with open("bigrams.csv", "w") as f:
         # Write out bigrams to csv in order of most to least common
         for bigram, freq in sorted(
