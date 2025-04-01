@@ -15,22 +15,21 @@ from embeddings.data import (
 
 
 def generate_bigrams(args: argparse.Namespace):
-    if not args.source and not args.training:
-        raise ValueError("Supply either the source file or training file.")
+    if not args.source:
+        raise ValueError("Supply source file.")
 
-    if not args.training:
-        # If source file doesn't exist, download it
-        source_path = Path(args.source)
-        if not source_path.is_file():
-            download_recipenlg_dataset(args.source)
+    # If source file doesn't exist, download it
+    source_path = Path(args.source)
+    if not source_path.is_file():
+        download_recipenlg_dataset(args.source)
 
-        recipes = load_recipes(args.source)
-        tokenized_recipes = tokenize_recipes(recipes)
-        train_bigram_model_nouns(tokenized_recipes, 0.00005)
+    recipes = load_recipes(args.source)
+    tokenized_recipes = tokenize_recipes(recipes)
+    extract_bigrams(tokenized_recipes, 0.00005, args.output)
 
 
-def train_bigram_model_nouns(
-    tokenized_recipes: list[TokenizedRecipe], freq_filter: int | float
+def extract_bigrams(
+    tokenized_recipes: list[TokenizedRecipe], freq_filter: int | float, output: str
 ) -> None:
     """Identify common bigrams in training data.
 
@@ -61,7 +60,7 @@ def train_bigram_model_nouns(
     }
 
     print("Bigrams saved to bigrams.csv")
-    with open("bigrams.csv", "w") as f:
+    with open(output, "w") as f:
         # Write out bigrams to csv in order of most to least common
         for bigram, freq in sorted(
             filtered_bigram_fdist.items(), key=lambda x: x[1], reverse=True

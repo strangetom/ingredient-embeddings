@@ -20,7 +20,7 @@ from embeddings.data import (
 
 
 def join_bigrams_in_recipes(
-    recipes: list[TokenizedRecipe], b: BigramModel
+    recipes: list[TokenizedRecipe], bm: BigramModel | None
 ) -> list[str]:
     """Use bigram model to join bigram tokens in recipe ingredients and instructions.
 
@@ -31,8 +31,8 @@ def join_bigrams_in_recipes(
     ----------
     recipes : list[TokenizedRecipe]
         List of TokenizedRecipes to join bigrams for.
-    b : BigramModel
-        Bigram model.
+    b : BigramModel | None
+        Bigram model, or None if not using bigrams
 
     Returns
     -------
@@ -41,30 +41,49 @@ def join_bigrams_in_recipes(
     """
     joined_recipes = []
     for recipe in recipes:
-        ingredients = [
-            ingred
-            for ingredient in recipe.ingredients
-            for ingred in b.join_bigrams(ingredient)
-            if ingred
-        ]
-        instructions = [
-            instruct
-            for instruction in recipe.instructions
-            for instruct in b.join_bigrams(instruction)
-            if instruct
-        ]
+        if bm:
+            ingredients = [
+                ingred
+                for ingredient in recipe.ingredients
+                for ingred in bm.join_bigrams(ingredient)
+                if ingred
+            ]
+            instructions = [
+                instruct
+                for instruction in recipe.instructions
+                for instruct in bm.join_bigrams(instruction)
+                if instruct
+            ]
+        else:
+            ingredients = [
+                ingred
+                for ingredient in recipe.ingredients
+                for ingred in ingredient
+                if ingred
+            ]
+            instructions = [
+                instruct
+                for instruction in recipe.instructions
+                for instruct in instruction
+                if instruct
+            ]
+
         joined_recipes.append(" ".join(ingredients + instructions))
     return joined_recipes
 
 
-def flatten_recipes(tokenize_recipes: list[TokenizedRecipe]) -> list[str]:
+def flatten_recipes(
+    tokenize_recipes: list[TokenizedRecipe], bigrams_file: str | None
+) -> list[str]:
     """Flatten recipes by joining bigram tokens with an underscore, then joining all
     tokens with a space into a single string.
 
     Parameters
     ----------
-    recipes : list[TokenizedRecipe]
-        List of recipes.
+    tokenize_recipes : list[TokenizedRecipe]
+        Description
+    bigrams_file : str | None
+        Path to bigrams file, or None to not apply bigrams.
 
     Returns
     -------
@@ -78,7 +97,9 @@ def flatten_recipes(tokenize_recipes: list[TokenizedRecipe]) -> list[str]:
     chunk_size = int((len(tokenize_recipes) + n_chunks) / n_chunks)
     chunks = chunked(tokenize_recipes, chunk_size)
 
-    bm = BigramModel("bigrams.csv")
+    bm = None
+    if bigrams_file:
+        bm = BigramModel("bigrams.csv")
 
     flattened_recipes = []
     print("Flattening recipes...")
@@ -102,7 +123,7 @@ def generate_embeddings(args: argparse.Namespace):
 
         recipes = load_recipes(args.source)
         tokenized_recipes = tokenize_recipes(recipes)
-        flattened_recipes = flatten_recipes(tokenized_recipes)
+        flattened_recipes = flatten_recipes(tokenized_recipes, args.bigrams)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             for recipe in flattened_recipes:
