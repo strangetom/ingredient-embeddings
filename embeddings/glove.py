@@ -41,10 +41,10 @@ class VocabCount:
         cmd = f"{cls.bin} -verbose {verbose} "
 
         if max_vocab:
-            cmd += "-max-vocab {max_vocab} "
+            cmd += f"-max-vocab {max_vocab} "
 
         if min_count > 0:
-            cmd += "-min-count {min_count} "
+            cmd += f"-min-count {min_count} "
 
         args = shlex.split(cmd)
         with (
