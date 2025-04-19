@@ -149,9 +149,9 @@ def generate_embeddings(args: argparse.Namespace):
     else:
         training_file = args.training
 
+    print(f"Preprocessed sentences saved to {training_file}")
     if args.preprocess:
-        # If only preprocess, print location of training file and exit.
-        print(f"Preprocessed sentences saved to {training_file}")
+        # If only preprocessing, exit now
         sys.exit(0)
 
     vocab = VocabCount.run(training_file, verbose=2, min_count=5)
