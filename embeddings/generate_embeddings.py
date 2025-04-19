@@ -145,6 +145,8 @@ def denoise(path: str, n: int) -> None:
     n : int
         Number of principal components to remove.
     """
+    if n == 0:
+        return
 
     def _projection(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         return a.dot(b.T) * b
