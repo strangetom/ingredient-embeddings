@@ -7,7 +7,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+import numpy as np
 from tqdm import tqdm
+from sklearn.decomposition import TruncatedSVD
 
 from embeddings.bigrams import BigramModel
 from embeddings.data import (
@@ -126,6 +128,57 @@ def compress_file(path: str):
         dst.writelines(src)
 
 
+def denoise(path: str, n: int) -> None:
+    """Denoise embeddings by removing n principal components.
+
+    References
+    ----------
+    Kawin Ethayarajh. 2018. Unsupervised Random Walk Sentence Embeddings: A Strong but
+    Simple Baseline. In Proceedings of the Third Workshop on Representation Learning for
+    NLP, pages 91–100, Melbourne, Australia. Association for Computational
+    Linguistics. https://aclanthology.org/W18-3012/
+
+    Parameters
+    ----------
+    path : str
+        Path to embeddings text file.
+    n : int
+        Number of principal components to remove.
+    """
+
+    def _projection(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+        return a.dot(b.T) * b
+
+    tokens = []
+    vectors = []
+    with open(path, "r") as f:
+        # Read first line as header
+        header = f.readline().rstrip()
+
+        # Read remaining lines and load vectors
+        for line in f:
+            parts = line.rstrip().split()
+            token = parts[0]
+            vector = np.array([float(v) for v in parts[1:]], dtype=np.float32)
+            tokens.append(token)
+            vectors.append(vector)
+
+    svd = TruncatedSVD(n_components=n, random_state=0).fit(vectors)
+    # Remove the weighted projections on the common discourse vectors
+    singular_value_sum = (svd.singular_values_**2).sum()
+    for i in range(n):
+        lambda_i = (svd.singular_values_[i] ** 2) / singular_value_sum
+        pc = svd.components_[i]
+        vectors = [v - lambda_i * _projection(v, pc) for v in vectors]
+
+    with open(path, "w") as f:
+        f.write(f"{header}\n")
+        for token, vector in zip(tokens, vectors):
+            vec = " ".join(str(v) for v in vector)
+            line = token + " " + vec + "\n"
+            f.write(line)
+
+
 def generate_embeddings(args: argparse.Namespace):
     if not args.source and not args.training:
         raise ValueError("Supply either the source file or training file.")
@@ -174,4 +227,5 @@ def generate_embeddings(args: argparse.Namespace):
         vector_size=25,
         save_file=args.model,
     )
+    denoise(embeddings, n=5)
     compress_file(embeddings + ".txt")
