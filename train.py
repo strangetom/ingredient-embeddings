@@ -33,7 +33,7 @@ if __name__ == "__main__":
         help="Path to save embeddings model to.",
         type=str,
         dest="model",
-        default=None,
+        default="ingredient_embeddings",
     )
     train_parser.add_argument(
         "--bigrams",

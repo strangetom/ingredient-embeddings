@@ -2,11 +2,11 @@
 
 import argparse
 import concurrent.futures as cf
+import gzip
 import sys
 import tempfile
 from pathlib import Path
 
-import floret
 from tqdm import tqdm
 
 from embeddings.bigrams import BigramModel
@@ -17,6 +17,7 @@ from embeddings.data import (
     download_recipenlg_dataset,
     tokenize_recipes,
 )
+from embeddings.glove import VocabCount, Cooccur, Shuffle, GloVe
 
 
 def join_bigrams_in_recipes(
@@ -111,6 +112,20 @@ def flatten_recipes(
     return flattened_recipes
 
 
+def compress_file(path: str):
+    """Compress file using gzip.
+
+    Compressed file as ".gz" appended to end of file name.
+
+    Parameters
+    ----------
+    path : str
+        Path to file to compress.
+    """
+    with open(path, "rb") as src, gzip.open(path + ".gz", "wb") as dst:
+        dst.writelines(src)
+
+
 def generate_embeddings(args: argparse.Namespace):
     if not args.source and not args.training:
         raise ValueError("Supply either the source file or training file.")
@@ -139,25 +154,24 @@ def generate_embeddings(args: argparse.Namespace):
         print(f"Preprocessed sentences saved to {training_file}")
         sys.exit(0)
 
-    model = floret.train_unsupervised(
+    vocab = VocabCount.run(training_file, verbose=2, min_count=5)
+    cooccur = Cooccur.run(
         training_file,
-        mode="floret",  # more size/memory efficient
-        model="cbow",  # model type, skipgram or cbow
-        ws=5,  # window size
-        minn=2,  # smallest subtoken n-grams to generate
-        maxn=5,  # largest subtoken n-grams to generate
-        minCount=3,  # only include tokens that occur at least this many times
-        dim=300,  # model dimensions
-        epoch=30,  # training epochs
-        lr=0.01,  # learning rate, between 0 and 1
-        wordNgrams=3,  # length of word n-grams
-        bucket=50000,
-        hashCount=2,
+        verbose=2,
+        symmetric=1,
+        window_size=15,
+        vocab_file=vocab,
+        memory=32,
     )
-    if not args.model:
-        dim = model.get_dimension()
-        model_name = f"ingredient_embeddings.{dim}d.floret.bin"
-    else:
-        model_name = args.model
-
-    model.save_model(model_name)
+    shuff = Shuffle.run(cooccur, verbose=2, memory=32)
+    embeddings = GloVe.run(
+        input_file=shuff,
+        vocab_file=vocab,
+        verbose=2,
+        write_header=1,
+        iter=100,
+        binary=2,
+        vector_size=25,
+        save_file=args.model,
+    )
+    compress_file(embeddings + ".txt")
