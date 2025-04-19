@@ -25,8 +25,9 @@ URL_HTTP = re.compile(r"(https?://\S+)", re.UNICODE)
 URL_WWW = re.compile(r"(www\.\S+)", re.UNICODE)
 NUMERIC = re.compile(r"([0-9\-\.\/])+", re.UNICODE)
 CURRENCY = re.compile(r"([#£$]\S+)\b", re.UNICODE)  # use spacy's token.like_currency
-LQUOTE = re.compile(r"\s[\"\']", re.UNICODE)
-RQUOTE = re.compile(r"[\"\']\s", re.UNICODE)
+LQUOTE = re.compile(r"\b[\"\']", re.UNICODE)
+RQUOTE = re.compile(r"[\"\']\b", re.UNICODE)
+SYMBOLS = re.compile(r"[™®]", re.UNICODE)
 MULTPLE_WHITESPACE = re.compile(r"(\s)+ ", re.UNICODE)
 
 
@@ -193,6 +194,22 @@ def remove_quotes(recipe: str) -> str:
     return recipe
 
 
+def remove_symbols(recipe: str) -> str:
+    """Remove symbols such as ™ from recipe.
+
+    Parameters
+    ----------
+    recipe : str
+        Recipe, as string.
+
+    Returns
+    -------
+    str
+        Recipe with symbols removed.
+    """
+    return SYMBOLS.sub("", recipe)
+
+
 def remove_multiple_whitespace(recipe: str) -> str:
     """Remove repeating consecutive whitespace characters and replace in single space.
 
@@ -215,6 +232,7 @@ CLEAN_FUNCS = [
     remove_urls,
     remove_currency,
     remove_numeric,
+    remove_symbols,
     remove_quotes,
     remove_multiple_whitespace,
 ]

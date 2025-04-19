@@ -122,12 +122,13 @@ class Recipe:
         for token, pos in nltk.pos_tag(tokenize(text)):
             if (
                 pos in ALLOWED_POS_TAGS
-                and token not in string.punctuation
-                and not token.isdigit()
                 and not token.isnumeric()
+                and not token.isdigit()
+                and not token.isdecimal()
                 and not token.isspace()
+                and token not in string.punctuation
                 and token not in STOP_WORDS
-                and len(token) > 1  # avoid leftover units e.g. 'c'
+                and len(token) > 1
             ):
                 tokens.append((stem(token), pos))
             else:
