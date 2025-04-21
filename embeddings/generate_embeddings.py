@@ -229,5 +229,5 @@ def generate_embeddings(args: argparse.Namespace):
         vector_size=25,
         save_file=args.model,
     )
-    denoise(embeddings, n=5)
+    denoise(embeddings + ".txt", n=5)
     compress_file(embeddings + ".txt")
