@@ -48,6 +48,9 @@ if __name__ == "__main__":
         action="store_true",
         dest="preprocess",
     )
+    train_parser.add_argument(
+        "--dim", help="Vector dimensions.", type=int, dest="dim", default=300
+    )
 
     bigram_parser.add_argument(
         "--source",

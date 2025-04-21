@@ -226,7 +226,7 @@ def generate_embeddings(args: argparse.Namespace):
         write_header=1,
         iter=100,
         binary=2,
-        vector_size=300,
+        vector_size=args.dim,
         save_file=args.model,
     )
     denoise(embeddings + ".txt", n=5)
