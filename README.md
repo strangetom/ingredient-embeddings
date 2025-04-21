@@ -2,9 +2,9 @@
 
 A word embeddings model trained on recipe ingredients.
 
-This repository contains the code used to train an embeddings model specifically for use with recipe ingredients. The [floret](https://github.com/explosion/floret) library is used to create the embeddings using the recipes in the [RecipeNLG](https://www.kaggle.com/datasets/saldenisov/recipenlg/data) corpus.
+This repository contains the code used to train an embeddings model specifically for use with recipe ingredients. The [GloVe](https://nlp.stanford.edu/projects/glove/) algorithm is used to create the embeddings using the recipes in the [RecipeNLG](https://www.kaggle.com/datasets/saldenisov/recipenlg/data) corpus.
 
-The code here should be readily adaptable to using other libraries to create the embeddings model, such as FastText or Word2Vec.
+The code here should be readily adaptable to using other libraries to create the embeddings models, such as FastText or Word2Vec.
 
 ### How do download the model?
 
@@ -13,21 +13,20 @@ The pretrained model can be found on the [releases](https://github.com/strangeto
 ### How do I use the model?
 
 ```python
-import floret
+# Using gensim as an example
+from gensim.models import KeyedVectors
 
 # Load model
-model = floret.load_model("ingredient-embeddings.300d.floret.bin")
-# Get vector for word
-vec = model["apple"]
+model = KeyedVectors.load_word2vec_format("ingredient_embeddings.300d.glove.txt")
+# Get vector for word stem
+vec = model["appl"]
 ```
-
-The floret library is based on FastText, so the [FastText documentation](https://fasttext.cc/) applies.
 
 There are a couple of limitations that apply due to how the model has been trained.
 
 * The model was trained on lowercase stems of words (e.g. using NLTK's `PorterStemmer`).
 * The model was trained on nouns, verbs and adjectives only.
-* Numbers, punctuation, white space, stop words and single character words were removed prior to training.
+* Numbers, punctuation, symbols, white space, stop words and single character words were removed prior to training.
 
 ### How was the model trained?
 
@@ -43,10 +42,9 @@ The [RecipeNLG](https://www.kaggle.com/datasets/saldenisov/recipenlg/data) corpu
   * The token was not a stop word,
   * The length of the token was greater than 1
 * These pre-processed recipes were written to a text file, with one recipe per line.
-  * These pre-processing steps result in a corpus of 70,000 words.
+  * These pre-processing steps result in a corpus of 30,000 words.
 
-* The text file was passed to `floret.train_unsupervised()` to initiate the training.
-  * The selected hyper-parameters for the model are based of those selected in [^1].
+* The text file was passed GloVe tools to initiate the training.
 
 
 > [!NOTE]
@@ -61,7 +59,7 @@ $ cd ingredient-embeddings
 $ python -m venv venv
 $ source venv/bin/activate
 $ python -m pip install -r requirements.txt
-$ python main.py
+$ python train.py embeddings --source data/recipenlg.csv
 ```
 
 ### References
