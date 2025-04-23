@@ -1,12 +1,12 @@
 #!/usr/bin/env/python3
 
 import re
+import string
 from itertools import chain
 from functools import lru_cache
 from html import unescape
 
 import nltk.stem.porter as nsp
-
 
 STEMMER = nsp.PorterStemmer()
 
@@ -24,10 +24,11 @@ HTML_TAGS = re.compile(r"<([^>]+)>", re.UNICODE)
 URL_HTTP = re.compile(r"(https?://\S+)", re.UNICODE)
 URL_WWW = re.compile(r"(www\.\S+)", re.UNICODE)
 NUMERIC = re.compile(r"([0-9\-\.\/])+", re.UNICODE)
-CURRENCY = re.compile(r"([#£$]\S+)\b", re.UNICODE)  # use spacy's token.like_currency
+CURRENCY = re.compile(r"([#£$]\S+)\b", re.UNICODE)
 LQUOTE = re.compile(r"\b[\"\']", re.UNICODE)
 RQUOTE = re.compile(r"[\"\']\b", re.UNICODE)
-SYMBOLS = re.compile(r"[™®]", re.UNICODE)
+SYMBOLS = re.compile(r"[™®@]", re.UNICODE)
+AMPERSAND = re.compile(r"(?<=[a-z])(&)(?![a-z])", re.UNICODE)
 MULTPLE_WHITESPACE = re.compile(r"(\s)+ ", re.UNICODE)
 
 
@@ -210,6 +211,26 @@ def remove_symbols(recipe: str) -> str:
     return SYMBOLS.sub("", recipe)
 
 
+def split_ampersand_from_word(recipe: str) -> str:
+    """Split ampersand from end of word by inserting space.
+
+    The regex has a positive lookbehind for a lower case character and a negative
+    lookahead for a lower case character. This is so we capture cases like "salt&" but
+    not "m&m".
+
+    Parameters
+    ----------
+    recipe : str
+        Recipe, as string.
+
+    Returns
+    -------
+    str
+        Recipe with with space inserted by ampersands.
+    """
+    return AMPERSAND.sub(" &", recipe)
+
+
 def remove_multiple_whitespace(recipe: str) -> str:
     """Remove repeating consecutive whitespace characters and replace in single space.
 
@@ -226,6 +247,43 @@ def remove_multiple_whitespace(recipe: str) -> str:
     return MULTPLE_WHITESPACE.sub(" ", recipe)
 
 
+def remove_words_containing_underscore(recipe: str) -> str:
+    """Remove word containing underscores.
+
+    This are typically errors in the recipe text where javascript or html entities have
+    been included.
+
+    Parameters
+    ----------
+    recipe : str
+        Recipe, as string.
+
+    Returns
+    -------
+    str
+        Recipe with words containing underscores removed.
+    """
+    return " ".join([w for w in recipe.split(" ") if "_" not in w])
+
+
+def remove_words_comprising_punctuation(recipe: str) -> str:
+    """Remove word comprising only of punctuation marks
+
+    Parameters
+    ----------
+    recipe : str
+        Recipe, as string.
+
+    Returns
+    -------
+    str
+        Recipe with words comprising only of punctuation removed.
+    """
+    return " ".join(
+        [w for w in recipe.split(" ") if not all(c in string.punctuation for c in w)]
+    )
+
+
 CLEAN_FUNCS = [
     unescape,
     remove_html_tags,
@@ -234,19 +292,15 @@ CLEAN_FUNCS = [
     remove_numeric,
     remove_symbols,
     remove_quotes,
+    split_ampersand_from_word,
     remove_multiple_whitespace,
+    remove_words_containing_underscore,
+    remove_words_comprising_punctuation,
 ]
 
 
 def preprocess_recipe(recipe: str) -> str:
     """Preprocess recipe for embeddings training.
-
-    Each recipe is the combination of the ingredients and instructions.
-    The preprocessing returns the tokens of the recipe with stop words, punctuation,
-    numbers and whitespace removed.
-
-    Only include nouns, verbs, adjectives per
-    http://link.springer.com/10.1007/978-3-030-72379-8_23
 
     Parameters
     ----------

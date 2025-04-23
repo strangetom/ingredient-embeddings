@@ -129,6 +129,7 @@ class Recipe:
                 and token not in string.punctuation
                 and token not in STOP_WORDS
                 and len(token) > 1
+                and "=" not in token
             ):
                 tokens.append((stem(token), pos))
             else:
@@ -159,6 +160,10 @@ def load_recipes(csv_file: str) -> list[Recipe]:
     list[Recipe]
         List of Recipe objects loaded from CSV.
     """
+    BAD_ROW_IDS = [
+        "1281926"  # non-english language
+    ]
+
     recipes = []
     print("Loading recipes...")
     with open(csv_file, "r") as f:
@@ -168,6 +173,10 @@ def load_recipes(csv_file: str) -> list[Recipe]:
                 # Recipes from cookbooks seem to be all user submitted and of
                 # extremely variable quality (including entries that are not
                 # recipes at all), so exclude them all
+                continue
+
+            if row[""] in BAD_ROW_IDS:
+                # Exclude recipes with specific IDs
                 continue
 
             recipe = Recipe(
