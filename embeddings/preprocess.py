@@ -247,27 +247,12 @@ def remove_multiple_whitespace(recipe: str) -> str:
     return MULTPLE_WHITESPACE.sub(" ", recipe)
 
 
-def remove_words_containing_underscore(recipe: str) -> str:
-    """Remove word containing underscores.
+def remove_bad_words(recipe: str) -> str:
+    """Remove bad words from recipe.
 
-    This are typically errors in the recipe text where javascript or html entities have
-    been included.
-
-    Parameters
-    ----------
-    recipe : str
-        Recipe, as string.
-
-    Returns
-    -------
-    str
-        Recipe with words containing underscores removed.
-    """
-    return " ".join([w for w in recipe.split(" ") if "_" not in w])
-
-
-def remove_words_comprising_punctuation(recipe: str) -> str:
-    """Remove word comprising only of punctuation marks
+    * Words containing underscores - these are typically errors in the recipe text
+      where javascript or html entities have been included.
+    * Words that only contain punctuation marks
 
     Parameters
     ----------
@@ -277,11 +262,18 @@ def remove_words_comprising_punctuation(recipe: str) -> str:
     Returns
     -------
     str
-        Recipe with words comprising only of punctuation removed.
+        Recipe with bad words removed.
     """
-    return " ".join(
-        [w for w in recipe.split(" ") if not all(c in string.punctuation for c in w)]
-    )
+    words = []
+    for word in recipe.split(" "):
+        if "_" in word:
+            continue
+        if all(char in string.punctuation for char in word):
+            continue
+
+        words.append(word)
+
+    return " ".join(words)
 
 
 CLEAN_FUNCS = [
@@ -294,8 +286,7 @@ CLEAN_FUNCS = [
     remove_quotes,
     split_ampersand_from_word,
     remove_multiple_whitespace,
-    remove_words_containing_underscore,
-    remove_words_comprising_punctuation,
+    remove_bad_words,
 ]
 
 

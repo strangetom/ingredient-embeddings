@@ -147,6 +147,31 @@ class TokenizedRecipe:
     instructions_pos: list[list[str]]
 
 
+def load_bad_recipes_list(file: str) -> set[int]:
+    """Read list of bad recipe IDs from file.
+
+    Each line of file should follow the pattern:
+        12345 # comment
+
+    Parameters
+    ----------
+    file : str
+        File containing bad recipe IDs.
+
+    Returns
+    -------
+    set[int]
+        Set of recipe IDs.
+    """
+    bad_recipes = set()
+    with open(file, "r") as f:
+        for line in f.read().splitlines():
+            id_, comment = line.split("#", 1)
+            bad_recipes.add(int(id_))
+
+    return bad_recipes
+
+
 def load_recipes(csv_file: str) -> list[Recipe]:
     """Load recipes from CSV file.
 
@@ -160,9 +185,7 @@ def load_recipes(csv_file: str) -> list[Recipe]:
     list[Recipe]
         List of Recipe objects loaded from CSV.
     """
-    BAD_ROW_IDS = [
-        "1281926"  # non-english language
-    ]
+    BAD_RECIPES = load_bad_recipes_list("bad_recipes.txt")
 
     recipes = []
     print("Loading recipes...")
@@ -175,8 +198,7 @@ def load_recipes(csv_file: str) -> list[Recipe]:
                 # recipes at all), so exclude them all
                 continue
 
-            if row[""] in BAD_ROW_IDS:
-                # Exclude recipes with specific IDs
+            if int(row[""]) in BAD_RECIPES:
                 continue
 
             recipe = Recipe(
