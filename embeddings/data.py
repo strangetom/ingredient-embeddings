@@ -83,13 +83,8 @@ class Recipe:
             if instruct
         ]
 
-    def ingredient_tokens(self, keep_discarded: bool) -> list[list[tuple[str, str]]]:
+    def ingredient_tokens(self) -> list[list[tuple[str, str]]]:
         """Return tokens for ingredients.
-
-        Parameters
-        ----------
-        keep_discarded : bool
-            Keep discarded tokens as (None, None) in return lists.
 
         Returns
         -------
@@ -97,15 +92,10 @@ class Recipe:
             List of tokens for each ingredient sentence.
         """
         tokens = [self._tokens(ingreds) for ingreds in self.ingredients]
-        return [tok for tok in tokens if (tok or keep_discarded)]
+        return [tok for tok in tokens if tok]
 
-    def instruction_tokens(self, keep_discarded: bool) -> list[list[tuple[str, str]]]:
+    def instruction_tokens(self) -> list[list[tuple[str, str]]]:
         """Return tokens for instructions.
-
-        Parameters
-        ----------
-        keep_discarded : bool
-            Keep discarded tokens as (None, None) in return lists.
 
         Returns
         -------
@@ -113,7 +103,7 @@ class Recipe:
             List of tokens for each instruction step.
         """
         tokens = [self._tokens(instruct) for instruct in self.instructions]
-        return [tok for tok in tokens if (tok[0] or keep_discarded)]
+        return [tok for tok in tokens if tok]
 
     def _tokens(self, text: str) -> list[tuple[str, str]]:
         """Tokenize input text, only keeping tokens that meeting criteria.
@@ -253,18 +243,13 @@ def chunked(iterable: Iterable, n: int) -> Iterable:
     return iter(partial(take, n, iter(iterable)), [])
 
 
-def get_recipes_tokens(
-    recipes: list[Recipe], keep_discarded: bool
-) -> list[TokenizedRecipe]:
+def get_recipes_tokens(recipes: list[Recipe]) -> list[TokenizedRecipe]:
     """Get tokens for recipe ingredients and instructions and return TokenizedRecipe.
 
     Parameters
     ----------
     recipes : list[Recipe]
         List of Recipes to get tokens for.
-    keep_discard : bool
-        Keep discarded tokens in TokenizedRecipes.
-        Discarded tokens will be represented as None.
 
     Returns
     -------
@@ -273,14 +258,14 @@ def get_recipes_tokens(
     tokenized_recipes = []
     for recipe in recipes:
         ingredient_tokens, ingredient_pos = [], []
-        for sentence in recipe.ingredient_tokens(keep_discarded):
+        for sentence in recipe.ingredient_tokens():
             if not sentence:
                 continue
             tokens, pos = zip(*sentence)
             ingredient_tokens.append(list(tokens))
             ingredient_pos.append(list(pos))
         instruction_tokens, instruction_pos = [], []
-        for sentence in recipe.instruction_tokens(keep_discarded):
+        for sentence in recipe.instruction_tokens():
             if not sentence:
                 continue
             tokens, pos = zip(*sentence)
@@ -299,9 +284,7 @@ def get_recipes_tokens(
     return tokenized_recipes
 
 
-def tokenize_recipes(
-    recipes: list[Recipe], keep_discarded: bool = False
-) -> list[TokenizedRecipe]:
+def tokenize_recipes(recipes: list[Recipe]) -> list[TokenizedRecipe]:
     """Preprocess recipes to obtain their ingredient and instruction tokens.
 
     This is done in parallel because calling pos_tag repeatedly is slow.
@@ -310,9 +293,6 @@ def tokenize_recipes(
     ----------
     recipes : list[Recipe]
         List of recipes.
-    keep_discard : bool
-        Keep discarded tokens in TokenizedRecipes.
-        Discarded tokens will be represented as None.
 
     Returns
     -------
@@ -329,9 +309,7 @@ def tokenize_recipes(
     tokenized_recipes = []
     print("Preprocessing recipes...")
     with cf.ProcessPoolExecutor(max_workers=8) as executor:
-        futures = [
-            executor.submit(get_recipes_tokens, c, keep_discarded) for c in chunks
-        ]
+        futures = [executor.submit(get_recipes_tokens, c) for c in chunks]
         for future in tqdm(cf.as_completed(futures), total=len(futures)):
             tokenized_recipes.extend(future.result())
 

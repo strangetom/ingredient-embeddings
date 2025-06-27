@@ -24,7 +24,7 @@ def generate_bigrams(args: argparse.Namespace):
         download_recipenlg_dataset(args.source)
 
     recipes = load_recipes(args.source)
-    tokenized_recipes = tokenize_recipes(recipes, keep_discarded=True)
+    tokenized_recipes = tokenize_recipes(recipes)
     extract_bigrams(tokenized_recipes, 0.00001, args.output)
 
 
