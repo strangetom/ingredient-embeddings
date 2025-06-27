@@ -34,7 +34,7 @@ def join_bigrams_in_recipes(
     ----------
     recipes : list[TokenizedRecipe]
         List of TokenizedRecipes to join bigrams for.
-    b : BigramModel | None
+    bm : BigramModel | None
         Bigram model, or None if not using bigrams
 
     Returns

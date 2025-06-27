@@ -24,8 +24,8 @@ def generate_bigrams(args: argparse.Namespace):
         download_recipenlg_dataset(args.source)
 
     recipes = load_recipes(args.source)
-    tokenized_recipes = tokenize_recipes(recipes)
-    extract_bigrams(tokenized_recipes, 0.00005, args.output)
+    tokenized_recipes = tokenize_recipes(recipes, keep_discarded=True)
+    extract_bigrams(tokenized_recipes, 0.00001, args.output)
 
 
 def extract_bigrams(
@@ -47,7 +47,13 @@ def extract_bigrams(
     for recipe in tokenized_recipes:
         for tokens, pos_tags in zip(recipe.instructions, recipe.instructions_pos):
             for (w1, p1), (w2, p2) in nltk.bigrams(zip(tokens, pos_tags)):
-                if w1 and w2 and w1 != w2 and p1.startswith("N") and p2.startswith("N"):
+                if (
+                    w1
+                    and w2
+                    and w1 != w2
+                    and p1.startswith(("N", "J"))
+                    and p2.startswith("N")
+                ):
                     bigram_dist.append((w1, w2))
 
     bigram_fdist = Counter(bigram_dist)

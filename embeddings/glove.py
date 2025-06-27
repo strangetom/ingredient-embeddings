@@ -89,7 +89,7 @@ class Cooccur:
             Number of context words to the left (and to the right, if symmetric = 1);
             Default 15.
         vocab_file : str
-            ile containing vocabulary (truncated unigram counts, produced by
+            File containing vocabulary (truncated unigram counts, produced by
             'vocab_count').
         memory : float, optional
             Soft limit for memory consumption, in GB -- based on simple heuristic, so
