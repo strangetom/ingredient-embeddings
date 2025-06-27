@@ -1,7 +1,10 @@
 #!/usr/bin/env/python3
 
 import argparse
+import json
 from collections import Counter
+from functools import lru_cache
+from importlib.resources import as_file, files
 from pathlib import Path
 
 import nltk
@@ -11,7 +14,24 @@ from embeddings.data import (
     load_recipes,
     download_recipenlg_dataset,
     tokenize_recipes,
+    stem,
 )
+
+
+@lru_cache
+def load_units_list() -> list[str]:
+    """Load list of unit names from file.
+
+    Returns
+    -------
+    list[str]
+        List of unit names.
+    """
+    with as_file(files(__package__) / "units.json") as p:
+        with open(p, "r") as f:
+            units = json.load(f)
+
+    return [stem(u) for u in units]
 
 
 def generate_bigrams(args: argparse.Namespace):
@@ -42,6 +62,8 @@ def extract_bigrams(
         If integer, this refers to the absolute count.
         If float, this refers the fraction of total bigrams.
     """
+    units = load_units_list()
+
     print("Identifying bigrams...")
     bigram_dist = []
     for recipe in tokenized_recipes:
@@ -51,6 +73,8 @@ def extract_bigrams(
                     w1
                     and w2
                     and w1 != w2
+                    and w1 not in units
+                    and w2 not in units
                     and p1.startswith(("N", "J"))
                     and p2.startswith("N")
                 ):
