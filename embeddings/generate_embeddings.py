@@ -57,19 +57,20 @@ def join_bigrams_in_recipes(
                 for instruct in bm.join_bigrams(instruction)
                 if instruct
             ]
-        else:
-            ingredients = [
-                ingred
-                for ingredient in recipe.ingredients
-                for ingred in ingredient
-                if ingred
-            ]
-            instructions = [
-                instruct
-                for instruction in recipe.instructions
-                for instruct in instruction
-                if instruct
-            ]
+            joined_recipes.append(" ".join(ingredients + instructions))
+
+        ingredients = [
+            ingred
+            for ingredient in recipe.ingredients
+            for ingred in ingredient
+            if ingred
+        ]
+        instructions = [
+            instruct
+            for instruction in recipe.instructions
+            for instruct in instruction
+            if instruct
+        ]
 
         joined_recipes.append(" ".join(ingredients + instructions))
     return joined_recipes
@@ -209,12 +210,12 @@ def generate_embeddings(args: argparse.Namespace):
         # If only preprocessing, exit now
         sys.exit(0)
 
-    vocab = VocabCount.run(training_file, verbose=2, min_count=5)
+    vocab = VocabCount.run(training_file, verbose=2, min_count=10)
     cooccur = Cooccur.run(
         training_file,
         verbose=2,
         symmetric=1,
-        window_size=15,
+        window_size=10,
         vocab_file=vocab,
         memory=32,
     )
