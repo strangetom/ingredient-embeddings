@@ -55,12 +55,12 @@ def get_primary_label(cls: owlready2.entity.ThingClass) -> str:
         return str(cls.name)
 
 
-def get_leaf_paths(lst: list) -> list[list[str]]:
+def get_leaf_paths(lst: list[owlready2.entity.ThingClass]) -> list[list[str]]:
     """Recurse through node hiearchy, return list of labels for path to leaf node.
 
     Parameters
     ----------
-    lst : list
+    lst : list[owlready2.entity.ThingClass]
         List of labels
 
     Returns
@@ -77,7 +77,7 @@ def get_leaf_paths(lst: list) -> list[list[str]]:
     ]
 
 
-def extract_food_material_leaf_node_paths(owl_file_path):
+def extract_food_material_leaf_node_paths(owl_file_path: str) -> list[list[str]]:
     """Extract paths to leaf nodes under food_material category from FoodOn OWL file.
 
     Parameters
