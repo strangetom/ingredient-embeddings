@@ -10,6 +10,7 @@ from pathlib import Path
 from nltk.corpus import stopwords
 import owlready2
 
+from .bigrams import BigramModel
 from .preprocess import tokenize
 
 # Suppress owlready2 warnings about unsupported datatypes
@@ -132,17 +133,24 @@ class FoodOn:
         dict[set, set[str]]
             Dict of similar tokens for each token.
         """
+        bm = BigramModel("bigrams.csv")
+
         similar = defaultdict(set)
         for group in self.ingredient_groups.values():
-            for ingredient in group:
+            group_tokens = set()
+            for ingredient in set(group):
                 tokens = self._tokenise(ingredient)
-                for token in tokens:
-                    similar[token].update(tokens - {token})
+                group_tokens |= set(bm.join_bigrams(tokens)) | set(tokens)
+
+            for token in group_tokens:
+                similar[token] = similar[token] | group_tokens - {token}
 
         return similar
 
-    def _tokenise(self, ingredient: str) -> set[str]:
+    def _tokenise(self, ingredient: str) -> list[str]:
         """Tokenize ingredient.
+
+        This output must be a list to preserve ordering for applying bigrams.
 
         Parameters
         ----------
@@ -151,10 +159,10 @@ class FoodOn:
 
         Returns
         -------
-        set[str]
-            Set of tokens.
+        list[str]
+            List of tokens.
         """
-        return {
+        return [
             token
             for token in tokenize(ingredient)
             if not token.isnumeric()
@@ -163,7 +171,7 @@ class FoodOn:
             and not token.isspace()
             and token not in string.punctuation
             and token not in STOP_WORDS
-        }
+        ]
 
 
 def save_leaf_nodes_to_csv(leaf_nodes_paths: list[list[str]], output_path: str):
