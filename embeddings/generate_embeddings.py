@@ -103,7 +103,7 @@ def flatten_recipes(
 
     bm = None
     if bigrams_file:
-        bm = BigramModel("bigrams.csv")
+        bm = BigramModel(bigrams_file)
 
     flattened_recipes = []
     print("Flattening recipes...")
