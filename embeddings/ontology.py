@@ -25,13 +25,24 @@ STOP_WORDS = stopwords.words("english")
 
 
 class FoodOn:
-    def __init__(self, owl_file_path: None | str = None):
+    def __init__(
+        self,
+        embeddings_file_path: str,
+        bigrams_file_path: str,
+        owl_file_path: None | str = None,
+    ):
+        self.embeddings_file_path = embeddings_file_path
+        self.bigrams_file_path = bigrams_file_path
+
         if owl_file_path:
             self.owl_file_path = owl_file_path
-            self.ingredient_groups = self.group_ingredients()
-            self.token_similarity = self.similar_tokens()
+        else:
+            self.owl_file_path = self.download()
 
-    def download(self, save_path: str = "data/foodon.owl"):
+        self.ingredient_groups = self.group_ingredients()
+        self.token_similarity = self.similar_tokens()
+
+    def download(self, save_path: str = "data/foodon.owl") -> str:
         """Download FoodOn ontology in OWL format.
 
         If the specified folder doesn't exist, create it.
@@ -39,7 +50,12 @@ class FoodOn:
         Parameters
         ----------
         save_path : str, optional
-            Path to save downloaded zip file to.
+            Path to save downloaded owl file to.
+
+        Returns
+        -------
+        str
+            Path to saved owl file.
         """
         if not Path(save_path).parent.is_dir():
             Path(save_path).parent.mkdir()
@@ -47,6 +63,7 @@ class FoodOn:
         print(f"Downloading {DATASET_URL} to {save_path}")
         urllib.request.urlretrieve(DATASET_URL, save_path)
         print("Done")
+        return save_path
 
     def _get_primary_label(self, cls: owlready2.entity.ThingClass) -> str:
         """Return primary label for class.
@@ -134,7 +151,7 @@ class FoodOn:
         dict[set, set[str]]
             Dict of similar tokens for each token.
         """
-        bm = BigramModel("bigrams.csv")
+        bm = BigramModel(self.bigrams_file_path)
 
         similar = defaultdict(set)
         for group in self.ingredient_groups.values():
@@ -163,7 +180,7 @@ class FoodOn:
         list[str]
             List of tokens.
         """
-        embeddings, _ = load_embeddings("ingredient_embeddings.bigrams.25d.glove.txt")
+        embeddings, _ = load_embeddings(self.embeddings_file_path)
         embedding_tokens = set(embeddings.keys())
 
         return [
