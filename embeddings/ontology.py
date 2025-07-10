@@ -10,8 +10,9 @@ from pathlib import Path
 from nltk.corpus import stopwords
 import owlready2
 
-from .bigrams import BigramModel
-from .preprocess import tokenize
+from embeddings.bigrams import BigramModel
+from embeddings.data import load_embeddings
+from embeddings.preprocess import stem, tokenize
 
 # Suppress owlready2 warnings about unsupported datatypes
 warnings.filterwarnings("ignore", category=UserWarning, module="owlready2")
@@ -162,8 +163,11 @@ class FoodOn:
         list[str]
             List of tokens.
         """
+        embeddings, _ = load_embeddings("ingredient_embeddings.bigrams.25d.glove.txt")
+        embedding_tokens = set(embeddings.keys())
+
         return [
-            token
+            stem(token)
             for token in tokenize(ingredient)
             if not token.isnumeric()
             and not token.isdigit()
@@ -171,6 +175,7 @@ class FoodOn:
             and not token.isspace()
             and token not in string.punctuation
             and token not in STOP_WORDS
+            and stem(token) in embedding_tokens
         ]
 
 

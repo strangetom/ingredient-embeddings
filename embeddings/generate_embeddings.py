@@ -15,6 +15,7 @@ from embeddings.bigrams import BigramModel
 from embeddings.data import (
     TokenizedRecipe,
     chunked,
+    load_embeddings,
     load_recipes,
     download_recipenlg_dataset,
     tokenize_recipes,
@@ -152,19 +153,9 @@ def denoise(path: str, n: int) -> None:
     def _projection(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         return a.dot(b.T) * b
 
-    tokens = []
-    vectors = []
-    with open(path, "r") as f:
-        # Read first line as header
-        header = f.readline().rstrip()
-
-        # Read remaining lines and load vectors
-        for line in f:
-            parts = line.rstrip().split()
-            token = parts[0]
-            vector = np.array([float(v) for v in parts[1:]], dtype=np.float32)
-            tokens.append(token)
-            vectors.append(vector)
+    embeddings, header = load_embeddings(path)
+    tokens = list(embeddings.keys())
+    vectors = list(embeddings.values())
 
     svd = TruncatedSVD(n_components=n, random_state=0).fit(vectors)
     # Remove the weighted projections on the common discourse vectors
