@@ -28,7 +28,7 @@ class FoodOn:
     def __init__(
         self,
         embeddings_file_path: str,
-        bigrams_file_path: str,
+        bigrams_file_path: None | str = None,
         owl_file_path: None | str = None,
     ):
         self.embeddings_file_path = embeddings_file_path
@@ -151,14 +151,20 @@ class FoodOn:
         dict[str, set[str]]
             Dict of similar tokens for each token.
         """
-        bm = BigramModel(self.bigrams_file_path)
+        if self.bigrams_file_path:
+            bm = BigramModel(self.bigrams_file_path)
+        else:
+            bm = None
 
         similar = defaultdict(set)
         for group in self.ingredient_groups.values():
             group_tokens = set()
             for ingredient in set(group):
                 tokens = self._tokenise(ingredient)
-                group_tokens |= set(bm.join_bigrams(tokens)) | set(tokens)
+                if bm:
+                    group_tokens |= set(bm.join_bigrams(tokens)) | set(tokens)
+                else:
+                    group_tokens |= set(tokens)
 
             for token in group_tokens:
                 similar[token] = similar[token] | group_tokens - {token}
