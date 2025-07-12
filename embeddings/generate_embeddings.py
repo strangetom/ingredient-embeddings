@@ -21,6 +21,7 @@ from embeddings.data import (
     tokenize_recipes,
 )
 from embeddings.glove import VocabCount, Cooccur, Shuffle, GloVe
+from embeddings.ontology import FoodOn
 
 
 def join_bigrams_in_recipes(
@@ -153,6 +154,7 @@ def denoise(path: str, n: int) -> None:
     def _projection(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         return a.dot(b.T) * b
 
+    print(f"Denoising embeddings by removing {n} principal components.")
     embeddings, header = load_embeddings(path)
     tokens = list(embeddings.keys())
     vectors = list(embeddings.values())
@@ -168,6 +170,78 @@ def denoise(path: str, n: int) -> None:
     with open(path, "w") as f:
         f.write(f"{header}\n")
         for token, vector in zip(tokens, vectors):
+            vec = " ".join(str(v) for v in vector)
+            line = token + " " + vec + "\n"
+            f.write(line)
+
+
+def retrofit_embeddings(
+    embedding_path: str,
+    bigram_path: str,
+    ontology_path: str,
+    alpha: float = 0.5,
+    beta: float = 0.5,
+    max_iterations: int = 100,
+    convergence_threshold: float = 1e-3,
+) -> None:
+    """Summary
+
+    Parameters
+    ----------
+    embedding_path : str
+        Path to embeddings text file.
+    bigram_path : str
+        Path to bigrams csv file.
+    ontology_path : str
+        Path to ontology owl file
+    alpha : float, optional
+        Description
+    beta : float, optional
+        Description
+    max_iterations : int, optional
+        Maximum number of iterations to run retrofitting for.
+    convergence_threshold : float, optional
+        Criteria for stopping retrofitting if average change is less than this
+        threshold.
+    """
+    print("Retrofitting embeddings using ontology.")
+    ontology = FoodOn(embedding_path, bigram_path, ontology_path)
+    word_neighbours = ontology.similar_tokens()
+    embeddings, header = load_embeddings(embedding_path)
+    retrofitted = {word: vec.copy() for word, vec in embeddings.items()}
+
+    for iter_ in range(max_iterations):
+        total_change = 0.0
+        words_updated = 0
+
+        for word in embeddings.keys():
+            neighbour_vecs = [retrofitted[word] for word in word_neighbours[word]]
+
+            if not neighbour_vecs:
+                continue
+
+            original_vec = embeddings[word]
+            neighbour_average = np.mean(neighbour_vecs, axis=0)
+            new_embedding = (
+                alpha * original_vec + beta * len(neighbour_vecs) * neighbour_average
+            ) / (alpha + beta * len(neighbour_vecs))
+
+            # Calculate change magnitude from where the retrofitted embedding was
+            change = np.linalg.norm(new_embedding - retrofitted[word])
+            total_change += change
+            words_updated += 1
+
+            retrofitted[word] = new_embedding
+
+        avg_change = total_change / max(words_updated, 1)
+        print(f"Iteration {iter_ + 1}: avg change = {avg_change:.6f}")
+        if avg_change < convergence_threshold:
+            print(f"Converged after {iter_ + 1} iterations")
+            break
+
+    with open(embedding_path, "w") as f:
+        f.write(f"{header}\n")
+        for token, vector in retrofitted.items():
             vec = " ".join(str(v) for v in vector)
             line = token + " " + vec + "\n"
             f.write(line)
@@ -222,4 +296,5 @@ def generate_embeddings(args: argparse.Namespace):
         save_file=args.model,
     )
     denoise(embeddings + ".txt", n=5)
+    retrofit_embeddings(embeddings + ".txt", args.bigrams, "data/foodon.owl")
     compress_file(embeddings + ".txt")

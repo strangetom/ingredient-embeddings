@@ -265,5 +265,5 @@ class GloVe:
         subprocess.run(args)
 
         if verbose == 2:
-            print(f"Embeddings written to {save_file}")
+            print(f"Embeddings written to {save_file}{{.txt,.bin}}")
         return save_file

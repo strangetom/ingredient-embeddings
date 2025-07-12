@@ -142,13 +142,13 @@ class FoodOn:
 
         return groups
 
-    def similar_tokens(self) -> dict[set, set[str]]:
+    def similar_tokens(self) -> dict[str, set[str]]:
         """From ingredients grouped by food product, calculate all tokens that belong to
         each group.
 
         Returns
         -------
-        dict[set, set[str]]
+        dict[str, set[str]]
             Dict of similar tokens for each token.
         """
         bm = BigramModel(self.bigrams_file_path)
