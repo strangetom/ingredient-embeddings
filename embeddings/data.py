@@ -122,7 +122,8 @@ class Recipe:
         tokens = []
         for token, pos in nltk.pos_tag(tokenize(text)):
             if (
-                pos in ALLOWED_POS_TAGS
+                # Allow tokens ending in % even if their POS tag is not in allowed list.
+                (pos in ALLOWED_POS_TAGS or token.endswith("%"))
                 and not token.isnumeric()
                 and not token.isdigit()
                 and not token.isdecimal()

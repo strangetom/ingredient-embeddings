@@ -6,9 +6,9 @@ from itertools import chain
 from functools import lru_cache
 from html import unescape
 
-import nltk.stem.porter as nsp
+import nltk.stem.snowball as nsp
 
-STEMMER = nsp.PorterStemmer()
+STEMMER = nsp.EnglishStemmer()
 
 # Define regular expressions used by tokenizer.
 # Matches one or more whitespace characters
@@ -23,7 +23,8 @@ FULL_STOP_TOKENISER = re.compile(r"(?<!\.\w)(\.)$")
 HTML_TAGS = re.compile(r"<([^>]+)>", re.UNICODE)
 URL_HTTP = re.compile(r"(https?://\S+)", re.UNICODE)
 URL_WWW = re.compile(r"(www\.\S+)", re.UNICODE)
-NUMERIC = re.compile(r"([0-9\-\.\/])+", re.UNICODE)
+# There's a negative lookahead on the NUMERIC regex to allow numbers that end with %.
+NUMERIC = re.compile(r"(([0-9\-\.\/])+)(?![%0-9\-\.\/])", re.UNICODE)
 CURRENCY = re.compile(r"([#£$]\S+)\b", re.UNICODE)
 LQUOTE = re.compile(r"\b[\"\']", re.UNICODE)
 RQUOTE = re.compile(r"[\"\']\b", re.UNICODE)
