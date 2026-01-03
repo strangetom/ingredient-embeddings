@@ -105,6 +105,12 @@ class FoodOn:
             [self._get_primary_label(cls), *path]
             for cls in lst
             for path in self.get_leaf_paths(list(cls.subclasses()))
+            if self._get_primary_label(cls)
+            not in [
+                "agency food product type",
+                "food material by process",
+                "multi-component food",
+            ]
         ]
 
     def _extract_food_material_leaf_node_paths(self) -> list[list[str]]:

@@ -177,14 +177,23 @@ def denoise(path: str, n: int) -> None:
 
 def retrofit_embeddings(
     embedding_path: str,
-    bigram_path: str,
+    bigram_path: str | None,
     ontology_path: str,
     alpha: float = 0.5,
     beta: float = 0.5,
     max_iterations: int = 100,
     convergence_threshold: float = 1e-3,
 ) -> None:
-    """Summary
+    """Retrofit embeddings using FoodOn ontology to provide an external source of
+    sementic linking.
+
+    References
+    ----------
+    Manaal Faruqui, Jesse Dodge, Sujay Kumar Jauhar, Chris Dyer, Eduard Hovy, and Noah
+    A. Smith. 2015. Retrofitting Word Vectors to Semantic Lexicons. In Proceedings of
+    the 2015 Conference of the North American Chapter of the Association for
+    Computational Linguistics: Human Language Technologies, pages 1606–1615, Denver,
+    Colorado. Association for Computational Linguistics.
 
     Parameters
     ----------
@@ -296,5 +305,5 @@ def generate_embeddings(args: argparse.Namespace):
         save_file=args.model,
     )
     denoise(embeddings + ".txt", n=5)
-    retrofit_embeddings(embeddings + ".txt", args.bigrams, "data/foodon.owl")
+    # retrofit_embeddings(embeddings + ".txt", args.bigrams, "data/foodon.owl")
     compress_file(embeddings + ".txt")
