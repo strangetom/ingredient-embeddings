@@ -9,19 +9,18 @@ import zipfile
 from dataclasses import dataclass
 from functools import lru_cache, partial
 from itertools import islice
+from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Iterable
 
 import nltk
 import numpy as np
-from nltk.corpus import stopwords
 from tqdm import tqdm
 
 from embeddings.preprocess import preprocess_recipe, stem, tokenize
 
 DATASET_URL = "https://www.kaggle.com/api/v1/datasets/download/saldenisov/recipenlg"
 
-STOP_WORDS = stopwords.words("english")
 ALLOWED_POS_TAGS = {
     "NN",
     "NNS",
@@ -41,6 +40,30 @@ ALLOWED_POS_TAGS = {
     "VBZ",
     "FW",
 }
+
+
+@lru_cache
+def load_stopwords_list() -> list[str]:
+    """Load list of stopwords names from file.
+
+    This is a list of high frequency grammatical words derived from
+    nltk.corpus.stopwords .The original list from NLTK has been edited to remove words
+    that the tokenizer cannot output.
+    See also https://dx.doi.org/10.18653/v1/W18-2502
+
+    This function is cached so it can be called multiple times without the overhead
+    of loading the list from file everytime.
+
+    Returns
+    -------
+    list[str]
+        List of stop words.
+    """
+    with as_file(files(__package__) / "stopwords.json") as p:
+        with open(p, "r") as f:
+            stopwords = json.load(f)
+
+    return [stem(w) for w in stopwords]
 
 
 def download_recipenlg_dataset(save_path: str = "data/recipenlg.zip"):
@@ -119,6 +142,8 @@ class Recipe:
         list[tuple[str, str]]
             List of (token, pos) tuples.
         """
+        stopwords = load_stopwords_list()
+
         tokens = []
         for token, pos in nltk.pos_tag(tokenize(text)):
             if (
@@ -129,7 +154,7 @@ class Recipe:
                 and not token.isdecimal()
                 and not token.isspace()
                 and token not in string.punctuation
-                and token not in STOP_WORDS
+                and token not in stopwords
                 and len(token) > 1
                 and "=" not in token
             ):
