@@ -217,8 +217,9 @@ def load_recipes(csv_file: str) -> list[Recipe]:
     recipes = []
     print("Loading recipes...")
     with open(csv_file, "r") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
+        row_count = sum(1 for _ in csv.reader(f))
+        f.seek(0)  # Rewind to start of file after counting rows.
+        for row in tqdm(csv.DictReader(f), total=row_count):
             if "cookbooks.com" in row["link"]:
                 # Recipes from cookbooks seem to be all user submitted and of
                 # extremely variable quality (including entries that are not
