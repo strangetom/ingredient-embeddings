@@ -24,8 +24,8 @@ vec = model["appl"]
 
 There are a couple of limitations that apply due to how the model has been trained.
 
-* The model was trained on lowercase stems of words (e.g. using NLTK's `PorterStemmer`).
-* The model was trained on nouns, verbs and adjectives only.
+* The model was trained on lowercase stems of words (e.g. using NLTK's `SnowballStemmer`).
+* The model was trained on nouns, verbs, adverbs and adjectives only.
 * Numbers, punctuation, symbols, white space, stop words and single character words were removed prior to training.
 
 ### How was the model trained?
@@ -45,6 +45,7 @@ The [RecipeNLG](https://www.kaggle.com/datasets/saldenisov/recipenlg/data) corpu
   * These pre-processing steps result in a corpus of 30,000 words.
 
 * The text file was passed GloVe tools to initiate the training.
+* After the training is completed, the embeddings are de-noised by removing 5 principal components[^5].
 
 
 > [!NOTE]
@@ -71,3 +72,5 @@ $ python train.py embeddings --source data/recipenlg.csv
 [^3]: M. Bień, M. Gilski, M. Maciejewska, W. Taisner, D. Wisniewski, and A. Lawrynowicz, ‘RecipeNLG: A Cooking Recipes Dataset for Semi-Structured Text Generation’, in *Proceedings of the 13th International Conference on Natural Language Generation*, Dublin, Ireland: Association for Computational Linguistics, 2020, pp. 22–28. doi: [10.18653/v1/2020.inlg-1.4](https://doi.org/10.18653/v1/2020.inlg-1.4).
 
 [^4]: G. Ispirova, G. Popovski, E. Valenčič, N. Hadzi-Kotarova, T. Eftimov, and B. K. Seljak, ‘Food Data Normalization Using Lexical and Semantic Similarities Heuristics’, in *Biomedical Engineering Systems and Technologies*, vol. 1400, X. Ye, F. Soares, E. De Maria, P. Gómez Vilda, F. Cabitza, A. Fred, and H. Gamboa, Eds., in Communications in Computer and Information Science, vol. 1400. , Cham: Springer International Publishing, 2021, pp. 468–485. doi: [10.1007/978-3-030-72379-8_23](https://doi.org/10.1007/978-3-030-72379-8_23).
+
+[^5]: Kawin Ethayarajh. 2018. Unsupervised Random Walk Sentence Embeddings: A Strong but Simple Baseline. In Proceedings of the Third Workshop on Representation Learning for NLP, pages 91–100, Melbourne, Australia. Association for Computational Linguistics. https://aclanthology.org/W18-3012/
