@@ -284,7 +284,7 @@ def generate_embeddings(args: argparse.Namespace):
         # If only preprocessing, exit now
         sys.exit(0)
 
-    vocab = VocabCount.run(training_file, verbose=2, min_count=10)
+    vocab = VocabCount.run(training_file, verbose=2, min_count=15)
     cooccur = Cooccur.run(
         training_file,
         verbose=2,
