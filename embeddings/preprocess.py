@@ -23,6 +23,7 @@ FULL_STOP_TOKENISER = re.compile(r"(?<!\.\w)(\.)$")
 HTML_TAGS = re.compile(r"<([^>]+)>", re.UNICODE)
 URL_HTTP = re.compile(r"(https?://\S+)", re.UNICODE)
 URL_WWW = re.compile(r"(www\.\S+)", re.UNICODE)
+URL_TLD = re.compile(r"\s(\S+\.com\S+)", re.UNICODE)
 # There's a negative lookahead on the NUMERIC regex to allow numbers that end with %.
 NUMERIC = re.compile(r"(([0-9\-\.\/])+)(?![%0-9\-\.\/])", re.UNICODE)
 CURRENCY = re.compile(r"([#£$]\S+)\b", re.UNICODE)
@@ -139,6 +140,7 @@ def remove_urls(recipe: str) -> str:
     """
     recipe = URL_HTTP.sub(" ", recipe)
     recipe = URL_WWW.sub(" ", recipe)
+    recipe = URL_TLD.sub(" ", recipe)
     return recipe
 
 
