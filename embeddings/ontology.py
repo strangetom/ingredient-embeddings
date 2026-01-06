@@ -7,11 +7,10 @@ import warnings
 from collections import defaultdict
 from pathlib import Path
 
-from nltk.corpus import stopwords
 import owlready2
 
 from embeddings.bigrams import BigramModel
-from embeddings.data import load_embeddings
+from embeddings.data import load_embeddings, load_stopwords_list
 from embeddings.preprocess import stem, tokenize
 
 # Suppress owlready2 warnings about unsupported datatypes
@@ -21,8 +20,6 @@ DATASET_URL = (
     "https://raw.githubusercontent.com/FoodOntology/foodon/refs/heads/master/foodon.owl"
 )
 
-STOP_WORDS = stopwords.words("english")
-
 
 class FoodOn:
     def __init__(
@@ -31,7 +28,7 @@ class FoodOn:
         bigrams_file_path: None | str = None,
         owl_file_path: None | str = None,
     ):
-        self.embeddings_file_path = embeddings_file_path
+        self.embeddings, _ = load_embeddings(embeddings_file_path)
         self.bigrams_file_path = bigrams_file_path
 
         if owl_file_path:
@@ -163,17 +160,17 @@ class FoodOn:
             bm = None
 
         similar = defaultdict(set)
-        for group in self.ingredient_groups.values():
-            group_tokens = set()
-            for ingredient in set(group):
+        for group_name, ingredients in self.ingredient_groups.items():
+            for ingredient in set(ingredients):
                 tokens = self._tokenise(ingredient)
+                bigrams = set()
                 if bm:
-                    group_tokens |= set(bm.join_bigrams(tokens)) | set(tokens)
-                else:
-                    group_tokens |= set(tokens)
+                    bigrams = set(bm.join_bigrams(tokens))
 
-            for token in group_tokens:
-                similar[token] = similar[token] | group_tokens - {token}
+                token_set = set(tokens) | bigrams
+
+                for token in token_set:
+                    similar[token].update(token_set - {token})
 
         return similar
 
@@ -192,8 +189,8 @@ class FoodOn:
         list[str]
             List of tokens.
         """
-        embeddings, _ = load_embeddings(self.embeddings_file_path)
-        embedding_tokens = set(embeddings.keys())
+        stop_words = load_stopwords_list()
+        embedding_tokens = set(self.embeddings.keys())
 
         return [
             stem(token)
@@ -203,7 +200,7 @@ class FoodOn:
             and not token.isdecimal()
             and not token.isspace()
             and token not in string.punctuation
-            and token not in STOP_WORDS
+            and token not in stop_words
             and stem(token) in embedding_tokens
         ]
 

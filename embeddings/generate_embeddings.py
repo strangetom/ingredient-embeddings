@@ -179,8 +179,8 @@ def retrofit_embeddings(
     embedding_path: str,
     bigram_path: str | None,
     ontology_path: str,
-    alpha: float = 0.5,
-    beta: float = 0.5,
+    alpha: float = 0.90,
+    beta: float = 0.10,
     max_iterations: int = 100,
     convergence_threshold: float = 1e-3,
 ) -> None:
@@ -217,23 +217,46 @@ def retrofit_embeddings(
     ontology = FoodOn(embedding_path, bigram_path, ontology_path)
     word_neighbours = ontology.similar_tokens()
     embeddings, header = load_embeddings(embedding_path)
+
+    # Normalize embeddings
+    for word in embeddings:
+        norm = np.linalg.norm(embeddings[word])
+        if norm > 0:
+            embeddings[word] /= norm
+
     retrofitted = {word: vec.copy() for word, vec in embeddings.items()}
 
     for iter_ in range(max_iterations):
         total_change = 0.0
         words_updated = 0
 
+        # Create a snapshot for the current iteration to ensure updates are based on the
+        # previous state (Jacobi-style). This avoids a vector being pulled towards
+        # another vector that has already been modified within the current iteration,
+        # thereby resulting in the vector being moved further than intended.
+        prev_iteration = {word: vec.copy() for word, vec in retrofitted.items()}
+
         for word in embeddings.keys():
-            neighbour_vecs = [retrofitted[word] for word in word_neighbours[word]]
+            neighbours = word_neighbours.get(word, set())
+            neighbour_vecs = [
+                prev_iteration[nb] for nb in neighbours if nb in prev_iteration
+            ]
 
             if not neighbour_vecs:
                 continue
 
+            num_neighbours = len(neighbour_vecs)
             original_vec = embeddings[word]
-            neighbour_average = np.mean(neighbour_vecs, axis=0)
-            new_embedding = (
-                alpha * original_vec + beta * len(neighbour_vecs) * neighbour_average
-            ) / (alpha + beta * len(neighbour_vecs))
+            neighbour_sum = np.sum(neighbour_vecs, axis=0)
+
+            new_embedding = (alpha * original_vec + beta * neighbour_sum) / (
+                alpha + beta * num_neighbours
+            )
+
+            # Normalize new embedding
+            norm = np.linalg.norm(new_embedding)
+            if norm > 0:
+                new_embedding /= norm
 
             # Calculate change magnitude from where the retrofitted embedding was
             change = np.linalg.norm(new_embedding - retrofitted[word])
@@ -276,10 +299,10 @@ def generate_embeddings(args: argparse.Namespace):
                 f.write("\n")
 
             training_file = f.name
+            print(f"Preprocessed sentences saved to {training_file}")
     else:
         training_file = args.training
 
-    print(f"Preprocessed sentences saved to {training_file}")
     if args.preprocess:
         # If only preprocessing, exit now
         sys.exit(0)
@@ -305,5 +328,5 @@ def generate_embeddings(args: argparse.Namespace):
         save_file=args.model,
     )
     denoise(embeddings + ".txt", n=5)
-    # retrofit_embeddings(embeddings + ".txt", args.bigrams, "data/foodon.owl")
+    retrofit_embeddings(embeddings + ".txt", args.bigrams, "data/foodon.owl")
     compress_file(embeddings + ".txt")
