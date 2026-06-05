@@ -14,7 +14,7 @@ class BigramModel:
     def __str__(self) -> str:
         return f"BigramModel(n_bigrams={len(self.bigrams)})"
 
-    def _load_csv(self, csv_file: str) -> list[tuple[str, str]]:
+    def _load_csv(self, csv_file: str) -> set[tuple[str, str]]:
         """Load CSV file of bigrams.
 
         The CSV should have two columns and no headers.
@@ -35,7 +35,7 @@ class BigramModel:
             for row in reader:
                 bigrams.append(tuple(row))
 
-        return bigrams
+        return set(bigrams)
 
     def join_bigrams(self, tokens: list[str]) -> list[str]:
         """Join bigrams in tokens list with underscore.

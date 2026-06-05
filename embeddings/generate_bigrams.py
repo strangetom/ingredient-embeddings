@@ -19,7 +19,7 @@ from embeddings.data import (
 
 
 @lru_cache
-def load_units_list() -> list[str]:
+def load_units_list() -> set[str]:
     """Load list of unit names from file.
 
     Returns
@@ -31,7 +31,7 @@ def load_units_list() -> list[str]:
         with open(p, "r") as f:
             units = json.load(f)
 
-    return [stem(u) for u in units]
+    return {stem(u) for u in units}
 
 
 @lru_cache

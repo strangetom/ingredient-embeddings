@@ -43,7 +43,7 @@ ALLOWED_POS_TAGS = {
 
 
 @lru_cache
-def load_stopwords_list() -> list[str]:
+def load_stopwords_list() -> set[str]:
     """Load list of stopwords names from file.
 
     This is a list of high frequency grammatical words derived from
@@ -63,7 +63,7 @@ def load_stopwords_list() -> list[str]:
         with open(p, "r") as f:
             stopwords = json.load(f)
 
-    return [stem(w) for w in stopwords]
+    return {stem(w) for w in stopwords}
 
 
 def download_recipenlg_dataset(save_path: str = "data/recipenlg.zip"):
