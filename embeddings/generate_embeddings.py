@@ -3,6 +3,7 @@
 import argparse
 import concurrent.futures as cf
 import gzip
+import random
 import sys
 import tempfile
 from pathlib import Path
@@ -32,6 +33,9 @@ def join_bigrams_in_recipes(
     Each recipe is returned as a single str, created by joining the ingredient then
     instructions tokens with a space, after joining bigrams with an underscore.
 
+    Each list of ingredients is shuffled randomly to even out the unordered nature of
+    ingredients lists.
+
     Parameters
     ----------
     recipes : list[TokenizedRecipe]
@@ -53,28 +57,36 @@ def join_bigrams_in_recipes(
                 for ingred in bm.join_bigrams(ingredient)
                 if ingred
             ]
+            random.shuffle(ingredients)
             instructions = [
                 instruct
                 for instruction in recipe.instructions
                 for instruct in bm.join_bigrams(instruction)
                 if instruct
             ]
-            joined_recipes.append(" ".join(ingredients + instructions))
+            joined_recipes.append("<start_ing> " + " ".join(ingredients) + " <end_ing>")
+            joined_recipes.append(
+                "<start_inst> " + " ".join(instructions) + " <end_inst>"
+            )
+        else:
+            ingredients = [
+                ingred
+                for ingredient in recipe.ingredients
+                for ingred in ingredient
+                if ingred
+            ]
+            random.shuffle(ingredients)
+            instructions = [
+                instruct
+                for instruction in recipe.instructions
+                for instruct in instruction
+                if instruct
+            ]
+            joined_recipes.append("<start_ing> " + " ".join(ingredients) + " <end_ing>")
+            joined_recipes.append(
+                "<start_inst> " + " ".join(instructions) + " <end_inst>"
+            )
 
-        ingredients = [
-            ingred
-            for ingredient in recipe.ingredients
-            for ingred in ingredient
-            if ingred
-        ]
-        instructions = [
-            instruct
-            for instruction in recipe.instructions
-            for instruct in instruction
-            if instruct
-        ]
-
-        joined_recipes.append(" ".join(ingredients + instructions))
     return joined_recipes
 
 
@@ -290,6 +302,30 @@ def retrofit_embeddings(
             f.write(line)
 
 
+def remove_boundary_tokens(embedding_path: str) -> None:
+    """Remove boundary tokens from embeddings.
+
+    Boundary tokens are <start_ing>, <end_ing>, <start_inst>, <end_inst>.
+
+    Parameters
+    ----------
+    embedding_path : str
+        Path to embeddings text file.
+    """
+    embeddings, header = load_embeddings(embedding_path)
+    del embeddings["<start_ing>"]
+    del embeddings["<end_ing>"]
+    del embeddings["<start_inst>"]
+    del embeddings["<end_inst>"]
+
+    with open(embedding_path, "w") as f:
+        f.write(f"{header}\n")
+        for token, vector in embeddings.items():
+            vec = " ".join(str(v) for v in vector)
+            line = token + " " + vec + "\n"
+            f.write(line)
+
+
 def generate_embeddings(args: argparse.Namespace):
     if not args.source and not args.training:
         raise ValueError("Supply either the source file or training file.")
@@ -323,7 +359,7 @@ def generate_embeddings(args: argparse.Namespace):
         training_file,
         verbose=2,
         symmetric=1,
-        window_size=10,
+        window_size=20,
         vocab_file=vocab,
         memory=32,
     )
@@ -338,6 +374,7 @@ def generate_embeddings(args: argparse.Namespace):
         vector_size=args.dim,
         save_file=args.model,
     )
+    remove_boundary_tokens(embeddings + ".txt")
     denoise(embeddings + ".txt", n=7)
     # retrofit_embeddings(embeddings + ".txt", args.bigrams, "data/foodon.owl")
     compress_file(embeddings + ".txt")
