@@ -131,6 +131,35 @@ def compress_file(path: str):
         dst.writelines(src)
 
 
+def calculate_isotropy(vectors: np.ndarray) -> np.floating:
+    """Calculate the isotropy of the vectors.
+
+    Isotropy is a measure of how uniformly spaced the vectors are. A higher value
+    indicate more uniformly spaced, a lower value indicates a stronger bias in the
+    vectors.
+
+    Parameters
+    ----------
+    vectors : np.ndarray
+        Embeddings vectors.
+
+    Returns
+    -------
+    np.floating
+        Isotropy measure.
+    """
+    # Center the vectors
+    vectors = vectors - np.mean(vectors, axis=0)
+    # Compute covariance matrix eigenvalues
+    cov = np.cov(vectors, rowvar=False)
+    eigenvalues = np.linalg.eigvalsh(cov)
+
+    # Participation ratio formula
+    numerator = np.sum(eigenvalues) ** 2
+    denominator = np.sum(eigenvalues**2)
+    return numerator / (len(eigenvalues) * denominator)
+
+
 def denoise(path: str, n: int) -> None:
     """Denoise embeddings by removing n principal components.
 
@@ -159,6 +188,8 @@ def denoise(path: str, n: int) -> None:
     tokens = list(embeddings.keys())
     vectors = list(embeddings.values())
 
+    initial_isotropy = calculate_isotropy(np.array(vectors))
+
     svd = TruncatedSVD(n_components=n, random_state=0).fit(vectors)
     # Remove the weighted projections on the common discourse vectors
     singular_value_sum = (svd.singular_values_**2).sum()
@@ -166,6 +197,9 @@ def denoise(path: str, n: int) -> None:
         lambda_i = (svd.singular_values_[i] ** 2) / singular_value_sum
         pc = svd.components_[i]
         vectors = [v - lambda_i * _projection(v, pc) for v in vectors]
+
+    final_isotropy = calculate_isotropy(np.array(vectors))
+    print(f"Change is isotropy: {initial_isotropy:.4f} -> {final_isotropy:.4f}")
 
     with open(path, "w") as f:
         f.write(f"{header}\n")
@@ -304,6 +338,6 @@ def generate_embeddings(args: argparse.Namespace):
         vector_size=args.dim,
         save_file=args.model,
     )
-    denoise(embeddings + ".txt", n=5)
+    denoise(embeddings + ".txt", n=7)
     # retrofit_embeddings(embeddings + ".txt", args.bigrams, "data/foodon.owl")
     compress_file(embeddings + ".txt")
