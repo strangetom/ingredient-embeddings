@@ -51,7 +51,7 @@ class VocabCount:
             tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as out,
             open(corpus, "r") as inp,
         ):
-            subprocess.run(args, stdout=out, stdin=inp)
+            subprocess.run(args, stdout=out, stdin=inp, check=True)
             outputfile = out.name
 
         if verbose == 2:
@@ -115,7 +115,7 @@ class Cooccur:
             tempfile.NamedTemporaryFile(mode="w", suffix=".bin", delete=False) as out,
             open(corpus, "r") as inp,
         ):
-            subprocess.run(args, stdout=out, stdin=inp)
+            subprocess.run(args, stdout=out, stdin=inp, check=True)
             outputfile = out.name
 
         if verbose == 2:
@@ -167,7 +167,7 @@ class Shuffle:
             ) as out,
             open(cooccur, "r") as inp,
         ):
-            subprocess.run(args, stdout=out, stdin=inp)
+            subprocess.run(args, stdout=out, stdin=inp, check=True)
             outputfile = out.name
 
         if verbose == 2:
@@ -262,7 +262,7 @@ class GloVe:
             cmd += f"-seed {seed} "
 
         args = shlex.split(cmd)
-        subprocess.run(args)
+        subprocess.run(args, check=True)
 
         if verbose == 2:
             print(f"Embeddings written to {save_file}{{.txt,.bin}}")
