@@ -3,6 +3,7 @@
 import concurrent.futures as cf
 import csv
 import json
+import math
 import string
 import urllib.request
 import zipfile
@@ -331,7 +332,7 @@ def tokenize_recipes(recipes: list[Recipe]) -> list[TokenizedRecipe]:
     n_chunks = 100
     # Define chunk size so all groups have about the same number of elements, except the
     # last group which will be slightly smaller.
-    chunk_size = int((len(recipes) + n_chunks) / n_chunks)
+    chunk_size = math.ceil(len(recipes) / n_chunks)
     chunks = chunked(recipes, chunk_size)
 
     tokenized_recipes = []
@@ -344,7 +345,6 @@ def tokenize_recipes(recipes: list[Recipe]) -> list[TokenizedRecipe]:
     return tokenized_recipes
 
 
-@lru_cache
 def load_embeddings(path: str) -> tuple[dict[str, np.ndarray], str]:
     """Load GloVe embeddings from text file, return dict of embeddings as well as header
 
