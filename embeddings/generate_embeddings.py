@@ -399,11 +399,15 @@ def generate_embeddings(args: argparse.Namespace):
     for i in range(0, 15):
         isotropy_scores[i], _ = denoise(embeddings_dict, n=i)
     n_components, max_score = max(isotropy_scores.items(), key=lambda x: x[1])
-    print(f"Denoising embeddings by removing {n_components} principal components.")
-    print(f"Isotropy has changed from {isotropy_scores[0]:.4f} to {max_score:.4f}.")
+    print(
+        (
+            f"Denoising embeddings by removing {n_components} principal components, "
+            f"increasing isotropy from {isotropy_scores[0]:.4f} to {max_score:.4f}."
+        )
+    )
     _, embeddings_dict = denoise(embeddings_dict, n=n_components)
 
     # retrofit_embeddings(embeddings + ".txt", args.bigrams, "data/foodon.owl")
 
-    write_embeddings(embeddings + ".txt", embeddings_dict, embeddings_header)
-    compress_file(embeddings + ".txt")
+    write_embeddings(embeddings, embeddings_dict, embeddings_header)
+    compress_file(embeddings)

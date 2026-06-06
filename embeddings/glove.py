@@ -239,7 +239,7 @@ class GloVe:
         Returns
         -------
         str
-            Path of file embeddings written to.
+            Path of text file embeddings written to.
         """
         # Modify save file name to include dimensions and embedding type.
         save_file = f"{save_file}.{vector_size}d.glove"
@@ -266,4 +266,4 @@ class GloVe:
 
         if verbose == 2:
             print(f"Embeddings written to {save_file}{{.txt,.bin}}")
-        return save_file
+        return save_file + ".txt"
