@@ -10,11 +10,11 @@ from pathlib import Path
 from nltk.corpus import stopwords
 import owlready2
 
+from embeddings._dataclasses import Embeddings
 from embeddings.bigrams import BigramModel
-from embeddings.data import load_embeddings
 from embeddings.preprocess import stem, tokenize
 
-# Suppress owlready2 warnings about unsupported datatypes
+# Suppress owlready2 warnings about unsupported data types
 warnings.filterwarnings("ignore", category=UserWarning, module="owlready2")
 
 DATASET_URL = (
@@ -27,11 +27,11 @@ STOP_WORDS = stopwords.words("english")
 class FoodOn:
     def __init__(
         self,
-        embeddings_file_path: str,
+        embeddings: Embeddings,
         bigrams_file_path: None | str = None,
         owl_file_path: None | str = None,
     ):
-        self.embeddings_file_path = embeddings_file_path
+        self.embeddings = embeddings
         self.bigrams_file_path = bigrams_file_path
 
         if owl_file_path:
@@ -87,7 +87,7 @@ class FoodOn:
             return str(cls.name)
 
     def get_leaf_paths(self, lst: list[owlready2.entity.ThingClass]) -> list[list[str]]:
-        """Recurse through node hiearchy, return list of labels for path to leaf node.
+        """Recurse through node hierarchy, return list of labels for path to leaf node.
 
         Parameters
         ----------
@@ -192,9 +192,6 @@ class FoodOn:
         list[str]
             List of tokens.
         """
-        embeddings, _ = load_embeddings(self.embeddings_file_path)
-        embedding_tokens = set(embeddings.keys())
-
         return [
             stem(token)
             for token in tokenize(ingredient)
@@ -204,7 +201,7 @@ class FoodOn:
             and not token.isspace()
             and token not in string.punctuation
             and token not in STOP_WORDS
-            and stem(token) in embedding_tokens
+            and stem(token) in self.embeddings
         ]
 
 

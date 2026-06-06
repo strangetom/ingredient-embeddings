@@ -2,28 +2,24 @@
 
 import argparse
 import concurrent.futures as cf
-import gzip
 import random
 import sys
 import tempfile
 from pathlib import Path
 from typing import TypeVar
 
-import numpy as np
 from tqdm import tqdm
-from sklearn.decomposition import TruncatedSVD
 
 from embeddings.bigrams import BigramModel
 from embeddings.data import (
     TokenizedRecipe,
     chunked,
-    load_embeddings,
     load_recipes,
     download_recipenlg_dataset,
     tokenize_recipes,
 )
 from embeddings.glove import VocabCount, Cooccur, Shuffle, GloVe
-from embeddings.ontology import FoodOn
+from embeddings.postprocess import BoundaryTokenRemover, Denoiser
 
 
 T = TypeVar("T")
@@ -139,210 +135,6 @@ def flatten_recipes(
     return flattened_recipes
 
 
-def compress_file(path: str):
-    """Compress file using gzip.
-
-    Compressed file as ".gz" appended to end of file name.
-
-    Parameters
-    ----------
-    path : str
-        Path to file to compress.
-    """
-    with open(path, "rb") as src, gzip.open(path + ".gz", "wb") as dst:
-        dst.writelines(src)
-
-
-def calculate_isotropy(vectors: np.ndarray) -> np.floating:
-    """Calculate the isotropy of the vectors.
-
-    Isotropy is a measure of how uniformly spaced the vectors are. A higher value
-    indicate more uniformly spaced, a lower value indicates a stronger bias in the
-    vectors.
-
-    Parameters
-    ----------
-    vectors : np.ndarray
-        Embeddings vectors.
-
-    Returns
-    -------
-    np.floating
-        Isotropy measure.
-    """
-    # Center the vectors
-    vectors = vectors - np.mean(vectors, axis=0)
-    # Compute covariance matrix eigenvalues
-    cov = np.cov(vectors, rowvar=False)
-    eigenvalues = np.linalg.eigvalsh(cov)
-
-    # Participation ratio formula
-    numerator = np.sum(eigenvalues) ** 2
-    denominator = np.sum(eigenvalues**2)
-    return numerator / (len(eigenvalues) * denominator)
-
-
-def denoise(
-    embeddings_dict: dict[str, np.ndarray], n: int
-) -> tuple[np.floating, dict[str, np.ndarray]]:
-    """Denoise embeddings by removing n principal components.
-
-    References
-    ----------
-    Kawin Ethayarajh. 2018. Unsupervised Random Walk Sentence Embeddings: A Strong but
-    Simple Baseline. In Proceedings of the Third Workshop on Representation Learning for
-    NLP, pages 91–100, Melbourne, Australia. Association for Computational
-    Linguistics. https://aclanthology.org/W18-3012/
-
-    Parameters
-    ----------
-    embeddings_dict : dict[str, np.ndarray]
-        Embeddings dict.
-    n : int
-        Number of principal components to remove.
-
-    Returns
-    -------
-    tuple[np.floating, dict[str, np.ndarray]
-        Isotropy of denoised embeddings, denoised embeddings.
-    """
-
-    def _projection(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-        return a.dot(b.T) * b
-
-    tokens = list(embeddings_dict.keys())
-    vectors = list(embeddings_dict.values())
-
-    if n == 0:
-        return calculate_isotropy(np.array(vectors)), embeddings_dict
-
-    svd = TruncatedSVD(n_components=n, random_state=0).fit(vectors)
-    # Remove the weighted projections on the common discourse vectors
-    singular_value_sum = (svd.singular_values_**2).sum()
-    for i in range(n):
-        lambda_i = (svd.singular_values_[i] ** 2) / singular_value_sum
-        pc = svd.components_[i]
-        vectors = [v - lambda_i * _projection(v, pc) for v in vectors]
-
-    denoised_isotropy = calculate_isotropy(np.array(vectors))
-    return denoised_isotropy, {token: vector for token, vector in zip(tokens, vectors)}
-
-
-def retrofit_embeddings(
-    embedding_path: str,
-    bigram_path: str | None,
-    ontology_path: str,
-    alpha: float = 0.5,
-    beta: float = 0.5,
-    max_iterations: int = 100,
-    convergence_threshold: float = 1e-3,
-) -> None:
-    """Retrofit embeddings using FoodOn ontology to provide an external source of
-    sementic linking.
-
-    References
-    ----------
-    Manaal Faruqui, Jesse Dodge, Sujay Kumar Jauhar, Chris Dyer, Eduard Hovy, and Noah
-    A. Smith. 2015. Retrofitting Word Vectors to Semantic Lexicons. In Proceedings of
-    the 2015 Conference of the North American Chapter of the Association for
-    Computational Linguistics: Human Language Technologies, pages 1606–1615, Denver,
-    Colorado. Association for Computational Linguistics.
-
-    Parameters
-    ----------
-    embedding_path : str
-        Path to embeddings text file.
-    bigram_path : str
-        Path to bigrams csv file.
-    ontology_path : str
-        Path to ontology owl file
-    alpha : float, optional
-        Description
-    beta : float, optional
-        Description
-    max_iterations : int, optional
-        Maximum number of iterations to run retrofitting for.
-    convergence_threshold : float, optional
-        Criteria for stopping retrofitting if average change is less than this
-        threshold.
-    """
-    print("Retrofitting embeddings using ontology.")
-    ontology = FoodOn(embedding_path, bigram_path, ontology_path)
-    word_neighbours = ontology.similar_tokens()
-    embeddings, header = load_embeddings(embedding_path)
-    retrofitted = {word: vec.copy() for word, vec in embeddings.items()}
-
-    for iter_ in range(max_iterations):
-        total_change = 0.0
-        words_updated = 0
-
-        for word in embeddings.keys():
-            neighbour_vecs = [retrofitted[word] for word in word_neighbours[word]]
-
-            if not neighbour_vecs:
-                continue
-
-            original_vec = embeddings[word]
-            neighbour_average = np.mean(neighbour_vecs, axis=0)
-            new_embedding = (
-                alpha * original_vec + beta * len(neighbour_vecs) * neighbour_average
-            ) / (alpha + beta * len(neighbour_vecs))
-
-            # Calculate change magnitude from where the retrofitted embedding was
-            change = np.linalg.norm(new_embedding - retrofitted[word])
-            total_change += change
-            words_updated += 1
-
-            retrofitted[word] = new_embedding
-
-        avg_change = total_change / max(words_updated, 1)
-        print(f"Iteration {iter_ + 1}: avg change = {avg_change:.6f}")
-        if avg_change < convergence_threshold:
-            print(f"Converged after {iter_ + 1} iterations")
-            break
-
-    with open(embedding_path, "w") as f:
-        f.write(f"{header}\n")
-        for token, vector in retrofitted.items():
-            vec = " ".join(str(v) for v in vector)
-            line = token + " " + vec + "\n"
-            f.write(line)
-
-
-def remove_boundary_tokens(
-    embeddings_dict: dict[str, np.ndarray],
-) -> dict[str, np.ndarray]:
-    """Remove boundary tokens from embeddings.
-
-    Boundary tokens are <start_ing>, <end_ing>, <start_inst>, <end_inst>.
-
-    Parameters
-    ----------
-    embeddings_dict : dict[str, np.ndarray]
-        Embeddings dictionary.
-
-    Returns
-    -------
-    dict[str, np.ndarray]
-        Embeddings dictionary.
-    """
-    del embeddings_dict["<start_ing>"]
-    del embeddings_dict["<end_ing>"]
-    del embeddings_dict["<start_inst>"]
-    del embeddings_dict["<end_inst>"]
-
-    return embeddings_dict
-
-
-def write_embeddings(path: str, embeddings_dict: dict[str, np.ndarray], header: str):
-    with open(path, "w") as f:
-        f.write(f"{header}\n")
-        for token, vector in embeddings_dict.items():
-            vec = " ".join(str(v) for v in vector)
-            line = token + " " + vec + "\n"
-            f.write(line)
-
-
 def generate_embeddings(args: argparse.Namespace):
     if not args.source and not args.training:
         raise ValueError("Supply either the source file or training file.")
@@ -391,23 +183,15 @@ def generate_embeddings(args: argparse.Namespace):
         vector_size=args.dim,
         save_file=args.model,
     )
-    embeddings_dict, embeddings_header = load_embeddings(embeddings)
-    embeddings_dict = remove_boundary_tokens(embeddings_dict)
 
-    # Determine number of components to remove that maximises vector isotropy.
-    isotropy_scores = {}
-    for i in range(0, 15):
-        isotropy_scores[i], _ = denoise(embeddings_dict, n=i)
-    n_components, max_score = max(isotropy_scores.items(), key=lambda x: x[1])
-    print(
-        (
-            f"Denoising embeddings by removing {n_components} principal components, "
-            f"increasing isotropy from {isotropy_scores[0]:.4f} to {max_score:.4f}."
-        )
-    )
-    _, embeddings_dict = denoise(embeddings_dict, n=n_components)
+    remover = BoundaryTokenRemover(embeddings)
+    embeddings = remover.remove_boundary_tokens()
 
-    # retrofit_embeddings(embeddings + ".txt", args.bigrams, "data/foodon.owl")
+    denoiser = Denoiser(embeddings)
+    n_components = denoiser.find_best_denoising()
+    embeddings = denoiser.denoise(n_components)
 
-    write_embeddings(embeddings, embeddings_dict, embeddings_header)
-    compress_file(embeddings)
+    # retrofitter = Retrofitter(embeddings)
+    # retrofitter.retrofit(args.bigrams, "data/foodon.owl")
+
+    embeddings.write(compress=True)

@@ -4,6 +4,10 @@ import shlex
 import subprocess
 import tempfile
 
+from embeddings._loaders import load_embeddings
+
+from ._dataclasses import Embeddings
+
 
 class VocabCount:
     bin = "bin/vocab_count"
@@ -196,7 +200,7 @@ class GloVe:
         model: int = 2,
         save_file: str = "vectors",
         seed: int | None = None,
-    ) -> str:
+    ) -> Embeddings:
         """Run Glove tool to generate word embedding vectors.
 
         Parameters
@@ -238,8 +242,8 @@ class GloVe:
 
         Returns
         -------
-        str
-            Path of text file embeddings written to.
+        Embeddings
+            Embeddings object.
         """
         # Modify save file name to include dimensions and embedding type.
         save_file = f"{save_file}.{vector_size}d.glove"
@@ -266,4 +270,4 @@ class GloVe:
 
         if verbose == 2:
             print(f"Embeddings written to {save_file}{{.txt,.bin}}")
-        return save_file + ".txt"
+        return load_embeddings(save_file + ".txt")

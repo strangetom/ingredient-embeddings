@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Iterable
 
 import nltk
-import numpy as np
 from tqdm import tqdm
 
 from embeddings.preprocess import preprocess_recipe, stem, tokenize
@@ -343,31 +342,3 @@ def tokenize_recipes(recipes: list[Recipe]) -> list[TokenizedRecipe]:
             tokenized_recipes.extend(future.result())
 
     return tokenized_recipes
-
-
-def load_embeddings(path: str) -> tuple[dict[str, np.ndarray], str]:
-    """Load GloVe embeddings from text file, return dict of embeddings as well as header
-
-    Parameters
-    ----------
-    path : str
-        Path to embeddings text file.
-
-    Returns
-    -------
-    tuple[dict[str, np.ndarray], str]
-        Returns embeddings and header from file
-    """
-    embeddings = {}
-    with open(path, "r") as f:
-        # Read first line as header
-        header = f.readline().rstrip()
-
-        # Read remaining lines and load vectors
-        for line in f:
-            parts = line.rstrip().split()
-            token = parts[0]
-            vector = np.array([float(v) for v in parts[1:]], dtype=np.float32)
-            embeddings[token] = vector
-
-        return embeddings, header
