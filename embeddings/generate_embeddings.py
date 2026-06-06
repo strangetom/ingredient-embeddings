@@ -131,6 +131,11 @@ def flatten_recipes(
 
 
 def generate_embeddings(args: argparse.Namespace):
+    # Set seed if not set.
+    seed = args.seed or random.randint(0, 1_000_000_000)
+    random.seed(seed)
+    print(f"Seed is {seed}.")
+
     if not args.source and not args.training:
         raise ValueError("Supply either the source file or training file.")
 
@@ -153,7 +158,7 @@ def generate_embeddings(args: argparse.Namespace):
     else:
         training_file = args.training
 
-    print(f"Preprocessed sentences saved to {training_file}")
+    print(f"Preprocessed sentences saved to {training_file}.")
     if args.preprocess:
         # If only preprocessing, exit now
         sys.exit(0)
@@ -167,16 +172,18 @@ def generate_embeddings(args: argparse.Namespace):
         vocab_file=vocab,
         memory=32,
     )
-    shuff = Shuffle.run(cooccur, verbose=2, memory=32)
+    shuff = Shuffle.run(cooccur, verbose=2, memory=32, seed=seed)
     embeddings = GloVe.run(
         input_file=shuff,
         vocab_file=vocab,
         verbose=2,
         write_header=1,
-        iter=100,
+        iter=10,
         binary=2,
         vector_size=args.dim,
         save_file=args.model,
+        seed=seed,
+        threads=1,  # required for reproducibility
     )
 
     remover = BoundaryTokenRemover(embeddings)

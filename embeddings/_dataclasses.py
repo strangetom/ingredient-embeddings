@@ -63,8 +63,9 @@ class Embeddings:
 
         Compressed file as ".gz" appended to end of file name.
         """
-        with (
-            open(self.file_path, "rb") as src,
-            gzip.open(self.file_path + ".gz", "wb") as dst,
-        ):
-            dst.writelines(src)
+        # We use gzip.GzipFile so that we can set mtime=0 for the gzip.
+        # This removes the timestamp from the output file meaning it is always identical
+        # for the same set of inputs.
+        with gzip.GzipFile(self.file_path + ".gz", mode="wb", mtime=0) as dst:
+            with open(self.file_path, "rb") as src:
+                dst.writelines(src)

@@ -49,6 +49,12 @@ if __name__ == "__main__":
         dest="preprocess",
     )
     train_parser.add_argument(
+        "--seed",
+        default=None,
+        type=int,
+        help="Seed value used for train/test split.",
+    )
+    train_parser.add_argument(
         "--dim", help="Vector dimensions.", type=int, dest="dim", default=300
     )
 
