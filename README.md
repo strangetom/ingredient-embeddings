@@ -45,7 +45,9 @@ The [RecipeNLG](https://www.kaggle.com/datasets/saldenisov/recipenlg/data) corpu
   * These pre-processing steps result in a corpus of 30,000 words.
 
 * The text file was passed GloVe tools to initiate the training.
-* After the training is completed, the embeddings are de-noised by removing 5 principal components[^5].
+* After the training is completed, the embeddings are de-noised by removing 7 principal components[^5].
+  * The choice to remove the 7 principal components was based on the
+
 
 
 > [!NOTE]

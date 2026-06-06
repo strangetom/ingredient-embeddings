@@ -7,6 +7,7 @@ import random
 import sys
 import tempfile
 from pathlib import Path
+from typing import TypeVar
 
 import numpy as np
 from tqdm import tqdm
@@ -23,6 +24,17 @@ from embeddings.data import (
 )
 from embeddings.glove import VocabCount, Cooccur, Shuffle, GloVe
 from embeddings.ontology import FoodOn
+
+
+T = TypeVar("T")
+
+
+def shuffle(seq: list[T]) -> list[T]:
+    """Return input list, shuffled.
+
+    This function exists because random.shuffle shuffles the list in place.
+    """
+    return random.sample(seq, len(seq))
 
 
 def join_bigrams_in_recipes(
@@ -53,11 +65,10 @@ def join_bigrams_in_recipes(
         if bm:
             ingredients = [
                 ingred
-                for ingredient in recipe.ingredients
+                for ingredient in shuffle(recipe.ingredients)
                 for ingred in bm.join_bigrams(ingredient)
                 if ingred
             ]
-            random.shuffle(ingredients)
             instructions = [
                 instruct
                 for instruction in recipe.instructions
@@ -71,11 +82,10 @@ def join_bigrams_in_recipes(
         else:
             ingredients = [
                 ingred
-                for ingredient in recipe.ingredients
+                for ingredient in shuffle(recipe.ingredients)
                 for ingred in ingredient
                 if ingred
             ]
-            random.shuffle(ingredients)
             instructions = [
                 instruct
                 for instruction in recipe.instructions
@@ -172,7 +182,9 @@ def calculate_isotropy(vectors: np.ndarray) -> np.floating:
     return numerator / (len(eigenvalues) * denominator)
 
 
-def denoise(path: str, n: int) -> None:
+def denoise(
+    embeddings_dict: dict[str, np.ndarray], n: int
+) -> tuple[np.floating, dict[str, np.ndarray]]:
     """Denoise embeddings by removing n principal components.
 
     References
@@ -184,23 +196,25 @@ def denoise(path: str, n: int) -> None:
 
     Parameters
     ----------
-    path : str
-        Path to embeddings text file.
+    embeddings_dict : dict[str, np.ndarray]
+        Embeddings dict.
     n : int
         Number of principal components to remove.
+
+    Returns
+    -------
+    tuple[np.floating, dict[str, np.ndarray]
+        Isotropy of denoised embeddings, denoised embeddings.
     """
-    if n == 0:
-        return
 
     def _projection(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         return a.dot(b.T) * b
 
-    print(f"Denoising embeddings by removing {n} principal components.")
-    embeddings, header = load_embeddings(path)
-    tokens = list(embeddings.keys())
-    vectors = list(embeddings.values())
+    tokens = list(embeddings_dict.keys())
+    vectors = list(embeddings_dict.values())
 
-    initial_isotropy = calculate_isotropy(np.array(vectors))
+    if n == 0:
+        return calculate_isotropy(np.array(vectors)), embeddings_dict
 
     svd = TruncatedSVD(n_components=n, random_state=0).fit(vectors)
     # Remove the weighted projections on the common discourse vectors
@@ -210,15 +224,8 @@ def denoise(path: str, n: int) -> None:
         pc = svd.components_[i]
         vectors = [v - lambda_i * _projection(v, pc) for v in vectors]
 
-    final_isotropy = calculate_isotropy(np.array(vectors))
-    print(f"Change is isotropy: {initial_isotropy:.4f} -> {final_isotropy:.4f}")
-
-    with open(path, "w") as f:
-        f.write(f"{header}\n")
-        for token, vector in zip(tokens, vectors):
-            vec = " ".join(str(v) for v in vector)
-            line = token + " " + vec + "\n"
-            f.write(line)
+    denoised_isotropy = calculate_isotropy(np.array(vectors))
+    return denoised_isotropy, {token: vector for token, vector in zip(tokens, vectors)}
 
 
 def retrofit_embeddings(
@@ -302,25 +309,35 @@ def retrofit_embeddings(
             f.write(line)
 
 
-def remove_boundary_tokens(embedding_path: str) -> None:
+def remove_boundary_tokens(
+    embeddings_dict: dict[str, np.ndarray],
+) -> dict[str, np.ndarray]:
     """Remove boundary tokens from embeddings.
 
     Boundary tokens are <start_ing>, <end_ing>, <start_inst>, <end_inst>.
 
     Parameters
     ----------
-    embedding_path : str
-        Path to embeddings text file.
-    """
-    embeddings, header = load_embeddings(embedding_path)
-    del embeddings["<start_ing>"]
-    del embeddings["<end_ing>"]
-    del embeddings["<start_inst>"]
-    del embeddings["<end_inst>"]
+    embeddings_dict : dict[str, np.ndarray]
+        Embeddings dictionary.
 
-    with open(embedding_path, "w") as f:
+    Returns
+    -------
+    dict[str, np.ndarray]
+        Embeddings dictionary.
+    """
+    del embeddings_dict["<start_ing>"]
+    del embeddings_dict["<end_ing>"]
+    del embeddings_dict["<start_inst>"]
+    del embeddings_dict["<end_inst>"]
+
+    return embeddings_dict
+
+
+def write_embeddings(path: str, embeddings_dict: dict[str, np.ndarray], header: str):
+    with open(path, "w") as f:
         f.write(f"{header}\n")
-        for token, vector in embeddings.items():
+        for token, vector in embeddings_dict.items():
             vec = " ".join(str(v) for v in vector)
             line = token + " " + vec + "\n"
             f.write(line)
@@ -354,12 +371,12 @@ def generate_embeddings(args: argparse.Namespace):
         # If only preprocessing, exit now
         sys.exit(0)
 
-    vocab = VocabCount.run(training_file, verbose=2, min_count=15)
+    vocab = VocabCount.run(training_file, verbose=2, min_count=10)
     cooccur = Cooccur.run(
         training_file,
         verbose=2,
         symmetric=1,
-        window_size=20,
+        window_size=15,
         vocab_file=vocab,
         memory=32,
     )
@@ -374,7 +391,19 @@ def generate_embeddings(args: argparse.Namespace):
         vector_size=args.dim,
         save_file=args.model,
     )
-    remove_boundary_tokens(embeddings + ".txt")
-    denoise(embeddings + ".txt", n=7)
+    embeddings_dict, embeddings_header = load_embeddings(embeddings)
+    embeddings_dict = remove_boundary_tokens(embeddings_dict)
+
+    # Determine number of components to remove that maximises vector isotropy.
+    isotropy_scores = {}
+    for i in range(0, 15):
+        isotropy_scores[i], _ = denoise(embeddings_dict, n=i)
+    n_components, max_score = max(isotropy_scores.items(), key=lambda x: x[1])
+    print(f"Denoising embeddings by removing {n_components} principal components.")
+    print(f"Isotropy has changed from {isotropy_scores[0]:.4f} to {max_score:.4f}.")
+    _, embeddings_dict = denoise(embeddings_dict, n=n_components)
+
     # retrofit_embeddings(embeddings + ".txt", args.bigrams, "data/foodon.owl")
+
+    write_embeddings(embeddings + ".txt", embeddings_dict, embeddings_header)
     compress_file(embeddings + ".txt")
