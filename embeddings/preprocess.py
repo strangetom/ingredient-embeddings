@@ -1,24 +1,20 @@
 #!/usr/bin/env/python3
 
+import concurrent.futures as cf
+import math
 import re
 import string
-from itertools import chain
-from functools import lru_cache
+from dataclasses import dataclass
+from itertools import islice
+from functools import partial
 from html import unescape
+from typing import Iterable
 
-import nltk.stem.snowball as nsp
+import nltk
+from tqdm import tqdm
 
-STEMMER = nsp.EnglishStemmer()
-
-# Define regular expressions used by tokenizer.
-# Matches one or more whitespace characters
-WHITESPACE_TOKENISER = re.compile(r"\S+")
-# Matches and captures one of the following: ( ) [ ] { } , " / : ; ? ! ~
-PUNCTUATION_TOKENISER = re.compile(r"([\(\)\[\]\{\}\,/:;\?\!\*\~])")
-# Matches and captures full stop at end of string
-# (?<!\.\w) is a negative lookbehind that prevents matches if the last full stop
-# is preceded by a a full stop then a word character.
-FULL_STOP_TOKENISER = re.compile(r"(?<!\.\w)(\.)$")
+from ._constants import ALLOWED_POS_TAGS, STOPWORDS
+from ._utils import tokenize, stem
 
 HTML_TAGS = re.compile(r"<([^>]+)>", re.UNICODE)
 URL_HTTP = re.compile(r"(https?://\S+)", re.UNICODE)
@@ -32,79 +28,6 @@ RQUOTE = re.compile(r"[\"\']\b", re.UNICODE)
 SYMBOLS = re.compile(r"[™®@]", re.UNICODE)
 AMPERSAND = re.compile(r"(?<=[a-z])(&)(?![a-z])", re.UNICODE)
 MULTIPLE_WHITESPACE = re.compile(r"(\s)+", re.UNICODE)
-
-
-def tokenize(sentence: str) -> list[str]:
-    """Tokenise an ingredient sentence.
-
-    The sentence is split on whitespace characters into a list of tokens.
-    If any of these tokens contains of the punctuation marks captured by
-    PUNCTUATION_TOKENISER, these are then split and isolated as a separate
-    token.
-
-    The returned list of tokens has any empty tokens removed.
-
-    Parameters
-    ----------
-    sentence : str
-        Ingredient sentence to tokenize
-
-    Returns
-    -------
-    list[str]
-        List of tokens from sentence.
-
-    Examples
-    --------
-    >>> tokenize("2 cups (500 ml) milk")
-    ["2", "cups", "(", "500", "ml", ")", "milk"]
-
-    >>> tokenize("1-2 mashed bananas: as ripe as possible")
-    ["1-2", "mashed", "bananas", ":", "as", "ripe", "as", "possible"]
-
-    >>> tokenize("1.5 kg bananas, mashed")
-    ["1.5", "kg", "bananas", ",", "mashed"]
-
-    >>> tokenize("Freshly grated Parmesan cheese, for garnish.")
-    ["Freshly", "grated", "Parmesan", "cheese", ",", "for", "garnish", "."]
-
-    >>> tokenize("2 onions, finely chopped*")
-    ["2", "onions", ",", "finely", "chopped", "*"]
-
-    >>> tokenize("2 cups beef and/or chicken stock")
-    ["2", "cups", "beef", "and/or", "chicken", "stock"]
-    """
-    tokens = [
-        PUNCTUATION_TOKENISER.split(tok)
-        for tok in WHITESPACE_TOKENISER.findall(sentence)
-    ]
-    flattened = [tok for tok in chain.from_iterable(tokens) if tok]
-
-    # Second pass to separate full stops from end of tokens
-    tokens = [FULL_STOP_TOKENISER.split(tok) for tok in flattened]
-
-    return [tok for tok in chain.from_iterable(tokens) if tok]
-
-
-@lru_cache(maxsize=512)
-def stem(token: str) -> str:
-    """Stem function with cache to improve performance.
-
-    The stem of a word output by the PorterStemmer is always the same, so we can
-    cache the result the first time and return that for subsequent future calls
-    without the need to do all the processing again.
-
-    Parameters
-    ----------
-    token : str
-        Token to stem
-
-    Returns
-    -------
-    str
-        Stem of token
-    """
-    return STEMMER.stem(token)
 
 
 def remove_html_tags(recipe: str) -> str:
@@ -293,6 +216,87 @@ CLEAN_FUNCS = [
 ]
 
 
+@dataclass
+class Recipe:
+    id_: int
+    ingredients: list[str]
+    instructions: list[str]
+
+    def __post_init__(self):
+        self.ingredients = [
+            preprocess_recipe(ingred).lower() for ingred in self.ingredients if ingred
+        ]
+        self.instructions = [
+            preprocess_recipe(instruct).lower()
+            for instruct in self.instructions
+            if instruct
+        ]
+
+    def ingredient_tokens(self) -> list[list[tuple[str, str]]]:
+        """Return tokens for ingredients.
+
+        Returns
+        -------
+        list[list[tuple[str, str]]]
+            List of tokens for each ingredient sentence.
+        """
+        tokens = [self._tokens(ingreds) for ingreds in self.ingredients]
+        return [tok for tok in tokens if tok]
+
+    def instruction_tokens(self) -> list[list[tuple[str, str]]]:
+        """Return tokens for instructions.
+
+        Returns
+        -------
+        list[list[tuple[str, str]]]
+            List of tokens for each instruction step.
+        """
+        tokens = [self._tokens(instruct) for instruct in self.instructions]
+        return [tok for tok in tokens if tok]
+
+    def _tokens(self, text: str) -> list[tuple[str, str]]:
+        """Tokenize input text, only keeping tokens that meeting criteria.
+
+        Parameters
+        ----------
+        text : str
+            Input text to tokenize.
+
+        Returns
+        -------
+        list[tuple[str, str]]
+            List of (token, pos) tuples.
+        """
+        tokens = []
+        for token, pos in nltk.pos_tag(tokenize(text)):
+            if (
+                # Allow tokens ending in % even if their POS tag is not in allowed list.
+                (pos in ALLOWED_POS_TAGS or token.endswith("%"))
+                and not token.isnumeric()
+                and not token.isdigit()
+                and not token.isdecimal()
+                and not token.isspace()
+                and token not in string.punctuation
+                and token not in STOPWORDS
+                and len(token) > 1
+                and "=" not in token
+            ):
+                tokens.append((stem(token), pos))
+            else:
+                tokens.append((None, None))
+
+        return tokens
+
+
+@dataclass
+class TokenizedRecipe:
+    id_: int
+    ingredients: list[list[str]]
+    ingredients_pos: list[list[str]]
+    instructions: list[list[str]]
+    instructions_pos: list[list[str]]
+
+
 def preprocess_recipe(recipe: str) -> str:
     """Preprocess recipe for embeddings training.
 
@@ -310,3 +314,108 @@ def preprocess_recipe(recipe: str) -> str:
         recipe = func(recipe)
 
     return recipe
+
+
+def chunked(iterable: Iterable, n: int) -> Iterable:
+    """Break *iterable* into lists of length *n*:
+
+    >>> list(chunked([1, 2, 3, 4, 5, 6], 3))
+    [[1, 2, 3], [4, 5, 6]]
+
+    By the default, the last yielded list will have fewer than *n* elements
+    if the length of *iterable* is not divisible by *n*:
+
+    >>> list(chunked([1, 2, 3, 4, 5, 6, 7, 8], 3))
+    [[1, 2, 3], [4, 5, 6], [7, 8]]
+
+    Parameters
+    ----------
+    iterable : Iterable
+        Iterable to chunk.
+    n : int
+        Size of each chunk.
+
+    Returns
+    -------
+    Iterable
+        Chunks of iterable with size n (or less for the last chunk).
+    """
+
+    def take(n, iterable):
+        "Return first n items of the iterable as a list."
+        return list(islice(iterable, n))
+
+    return iter(partial(take, n, iter(iterable)), [])
+
+
+def get_recipes_tokens(recipes: list[Recipe]) -> list[TokenizedRecipe]:
+    """Get tokens for recipe ingredients and instructions and return TokenizedRecipe.
+
+    Parameters
+    ----------
+    recipes : list[Recipe]
+        List of Recipes to get tokens for.
+
+    Returns
+    -------
+    list[TokenizedRecipe]
+    """
+    tokenized_recipes = []
+    for recipe in recipes:
+        ingredient_tokens, ingredient_pos = [], []
+        for sentence in recipe.ingredient_tokens():
+            if not sentence:
+                continue
+            tokens, pos = zip(*sentence)
+            ingredient_tokens.append(list(tokens))
+            ingredient_pos.append(list(pos))
+        instruction_tokens, instruction_pos = [], []
+        for sentence in recipe.instruction_tokens():
+            if not sentence:
+                continue
+            tokens, pos = zip(*sentence)
+            instruction_tokens.append(list(tokens))
+            instruction_pos.append(list(pos))
+
+        tokenized_recipes.append(
+            TokenizedRecipe(
+                id_=recipe.id_,
+                ingredients=ingredient_tokens,
+                ingredients_pos=ingredient_pos,
+                instructions=instruction_tokens,
+                instructions_pos=instruction_pos,
+            )
+        )
+    return tokenized_recipes
+
+
+def tokenize_recipes(recipes: list[Recipe]) -> list[TokenizedRecipe]:
+    """Preprocess recipes to obtain their ingredient and instruction tokens.
+
+    This is done in parallel because calling pos_tag repeatedly is slow.
+
+    Parameters
+    ----------
+    recipes : list[Recipe]
+        List of recipes.
+
+    Returns
+    -------
+    list[TokenizedRecipe]
+        List of tokenized recipes.
+    """
+    # Chunk data into 100 groups to process in parallel.
+    n_chunks = 100
+    # Define chunk size so all groups have about the same number of elements, except the
+    # last group which will be slightly smaller.
+    chunk_size = math.ceil(len(recipes) / n_chunks)
+    chunks = chunked(recipes, chunk_size)
+
+    tokenized_recipes = []
+    print("Preprocessing recipes...")
+    with cf.ProcessPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(get_recipes_tokens, c) for c in chunks]
+        for future in tqdm(cf.as_completed(futures), total=len(futures)):
+            tokenized_recipes.extend(future.result())
+
+    return tokenized_recipes

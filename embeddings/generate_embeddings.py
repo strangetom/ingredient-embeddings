@@ -10,16 +10,11 @@ from typing import TypeVar
 
 from tqdm import tqdm
 
-from embeddings.bigrams import BigramModel
-from embeddings.data import (
-    TokenizedRecipe,
-    chunked,
-    load_recipes,
-    download_recipenlg_dataset,
-    tokenize_recipes,
-)
-from embeddings.glove import VocabCount, Cooccur, Shuffle, GloVe
-from embeddings.postprocess import BoundaryTokenRemover, Denoiser
+from ._loaders import load_recipes, download_recipenlg_dataset
+from .bigrams import BigramModel
+from .preprocess import TokenizedRecipe, chunked, tokenize_recipes
+from .glove import VocabCount, Cooccur, Shuffle, GloVe
+from .postprocess import BoundaryTokenRemover, Denoiser
 
 
 T = TypeVar("T")

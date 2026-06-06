@@ -1,53 +1,15 @@
 #!/usr/bin/env/python3
 
 import argparse
-import json
 from collections import Counter
-from functools import lru_cache
-from importlib.resources import as_file, files
 from pathlib import Path
 
 import nltk
 
-from embeddings.data import (
-    TokenizedRecipe,
-    load_recipes,
-    download_recipenlg_dataset,
-    tokenize_recipes,
-    stem,
-)
-
-
-@lru_cache
-def load_units_list() -> set[str]:
-    """Load list of unit names from file.
-
-    Returns
-    -------
-    set[str]
-        Set of unit names.
-    """
-    with as_file(files(__package__) / "units.json") as p:
-        with open(p, "r") as f:
-            units = json.load(f)
-
-    return {stem(u) for u in units}
-
-
-@lru_cache
-def load_tools_list() -> set[str]:
-    """Load list of tools names from file.
-
-    Returns
-    -------
-    set[str]
-        Set of tools names.
-    """
-    with as_file(files(__package__) / "tools.json") as p:
-        with open(p, "r") as f:
-            tools = json.load(f)
-
-    return {stem(t) for t in tools}
+from ._loaders import download_recipenlg_dataset
+from .preprocess import TokenizedRecipe, tokenize_recipes
+from ._loaders import load_recipes
+from ._constants import UNITS, TOOLS
 
 
 def generate_bigrams(args: argparse.Namespace):
@@ -78,7 +40,7 @@ def extract_bigrams(
         If integer, this refers to the absolute count.
         If float, this refers the fraction of total bigrams.
     """
-    units_tools = load_units_list() | load_tools_list()
+    units_tools = UNITS | TOOLS
 
     print("Identifying bigrams...")
     bigram_dist = []
