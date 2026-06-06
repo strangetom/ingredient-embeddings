@@ -4,9 +4,8 @@ import shlex
 import subprocess
 import tempfile
 
-from embeddings._loaders import load_embeddings
-
 from ._dataclasses import Embeddings
+from ._loaders import load_embeddings
 
 
 class VocabCount:

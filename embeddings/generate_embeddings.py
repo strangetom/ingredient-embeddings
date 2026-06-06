@@ -2,6 +2,7 @@
 
 import argparse
 import concurrent.futures as cf
+import math
 import random
 import sys
 import tempfile
@@ -113,7 +114,7 @@ def flatten_recipes(
     n_chunks = 100
     # Define chunk size so all groups have about the same number of elements, except the
     # last group which will be slightly smaller.
-    chunk_size = int((len(tokenize_recipes) + n_chunks) / n_chunks)
+    chunk_size = math.ceil(len(tokenize_recipes) / n_chunks)
     chunks = chunked(tokenize_recipes, chunk_size)
 
     bm = None
@@ -194,6 +195,6 @@ def generate_embeddings(args: argparse.Namespace):
     embeddings = denoiser.denoise(n_components)
 
     # retrofitter = Retrofitter(embeddings)
-    # retrofitter.retrofit(args.bigrams, "data/foodon.owl")
+    # embeddings = retrofitter.retrofit(args.bigrams, "data/foodon.owl")
 
     embeddings.write(compress=True)

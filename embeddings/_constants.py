@@ -14,9 +14,6 @@ def load_stopwords_list() -> set[str]:
     that the tokenizer cannot output.
     See also https://dx.doi.org/10.18653/v1/W18-2502
 
-    This function is cached so it can be called multiple times without the overhead
-    of loading the list from file every time.
-
     Returns
     -------
     set[str]

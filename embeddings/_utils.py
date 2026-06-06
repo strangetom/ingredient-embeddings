@@ -71,7 +71,7 @@ def tokenize(sentence: str) -> list[str]:
     return [tok for tok in chain.from_iterable(tokens) if tok]
 
 
-@lru_cache(maxsize=512)
+@lru_cache(maxsize=None)
 def stem(token: str) -> str:
     """Stem function with cache to improve performance.
 
