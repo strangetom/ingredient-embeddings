@@ -273,8 +273,6 @@ class Recipe:
                 # Allow tokens ending in % even if their POS tag is not in allowed list.
                 (pos in ALLOWED_POS_TAGS or token.endswith("%"))
                 and not token.isnumeric()
-                and not token.isdigit()
-                and not token.isdecimal()
                 and not token.isspace()
                 and token not in string.punctuation
                 and token not in STOPWORDS
