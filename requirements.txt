@@ -2,3 +2,4 @@ numpy
 nltk
 tqdm
 owlready2
+scikit-learn
