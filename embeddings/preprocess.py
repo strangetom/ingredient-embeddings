@@ -31,7 +31,7 @@ LQUOTE = re.compile(r"\b[\"\']", re.UNICODE)
 RQUOTE = re.compile(r"[\"\']\b", re.UNICODE)
 SYMBOLS = re.compile(r"[™®@]", re.UNICODE)
 AMPERSAND = re.compile(r"(?<=[a-z])(&)(?![a-z])", re.UNICODE)
-MULTPLE_WHITESPACE = re.compile(r"(\s)+ ", re.UNICODE)
+MULTIPLE_WHITESPACE = re.compile(r"(\s)+", re.UNICODE)
 
 
 def tokenize(sentence: str) -> list[str]:
@@ -247,7 +247,7 @@ def remove_multiple_whitespace(recipe: str) -> str:
     str
         Recipe with repeating whitespace removed.
     """
-    return MULTPLE_WHITESPACE.sub(" ", recipe)
+    return MULTIPLE_WHITESPACE.sub(" ", recipe)
 
 
 def remove_bad_words(recipe: str) -> str:
