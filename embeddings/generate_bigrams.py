@@ -24,8 +24,8 @@ def load_units_list() -> set[str]:
 
     Returns
     -------
-    list[str]
-        List of unit names.
+    set[str]
+        Set of unit names.
     """
     with as_file(files(__package__) / "units.json") as p:
         with open(p, "r") as f:
@@ -35,19 +35,19 @@ def load_units_list() -> set[str]:
 
 
 @lru_cache
-def load_tools_list() -> list[str]:
+def load_tools_list() -> set[str]:
     """Load list of tools names from file.
 
     Returns
     -------
-    list[str]
-        List of tools names.
+    set[str]
+        Set of tools names.
     """
     with as_file(files(__package__) / "tools.json") as p:
         with open(p, "r") as f:
             tools = json.load(f)
 
-    return [stem(t) for t in tools]
+    return {stem(t) for t in tools}
 
 
 def generate_bigrams(args: argparse.Namespace):
@@ -78,7 +78,7 @@ def extract_bigrams(
         If integer, this refers to the absolute count.
         If float, this refers the fraction of total bigrams.
     """
-    units_tools = load_units_list() + load_tools_list()
+    units_tools = load_units_list() | load_tools_list()
 
     print("Identifying bigrams...")
     bigram_dist = []

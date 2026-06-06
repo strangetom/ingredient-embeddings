@@ -56,8 +56,8 @@ def load_stopwords_list() -> set[str]:
 
     Returns
     -------
-    list[str]
-        List of stop words.
+    set[str]
+        Set of stop words.
     """
     with as_file(files(__package__) / "stopwords.json") as p:
         with open(p, "r") as f:
