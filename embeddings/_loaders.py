@@ -131,4 +131,7 @@ def load_recipes(csv_file: str) -> list[Recipe]:
             )
             recipes.append(recipe)
 
+            if len(recipes) > 100_000:
+                break
+
     return recipes

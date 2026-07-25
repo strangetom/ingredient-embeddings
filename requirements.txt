@@ -3,3 +3,7 @@ nltk
 tqdm
 owlready2
 scikit-learn
+sentence_transformers
+optimum[onnxruntime]
+datasets # why?
+accelerate

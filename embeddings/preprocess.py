@@ -207,7 +207,7 @@ CLEAN_FUNCS = [
     remove_html_tags,
     remove_urls,
     remove_currency,
-    remove_numeric,
+    # remove_numeric,
     remove_symbols,
     remove_quotes,
     split_ampersand_from_word,
@@ -224,12 +224,10 @@ class Recipe:
 
     def __post_init__(self):
         self.ingredients = [
-            preprocess_recipe(ingred).lower() for ingred in self.ingredients if ingred
+            preprocess_recipe(ingred) for ingred in self.ingredients if ingred
         ]
         self.instructions = [
-            preprocess_recipe(instruct).lower()
-            for instruct in self.instructions
-            if instruct
+            preprocess_recipe(instruct) for instruct in self.instructions if instruct
         ]
 
     def ingredient_tokens(self) -> list[list[tuple[str, str]]]:
