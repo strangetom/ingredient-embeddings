@@ -1,80 +1,55 @@
 #!/usr/bin/env/python3
 
 import argparse
+from pathlib import Path
 
-from embeddings.generate_bigrams import generate_bigrams
-from embeddings.generate_embeddings import generate_embeddings
+from transformer_embeddings import fine_tune_embeddings, generate_dataset
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Train word embeddings and bigrams for recipe ingredients."
+        description="Fine tune mdbr-leaf-mt embeddings on recipes."
     )
-    subparsers = parser.add_subparsers(dest="command", help="Training commands")
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
 
-    train_parser = subparsers.add_parser("embeddings", help="Train word embeddings.")
-    bigram_parser = subparsers.add_parser("bigrams", help="Train word bigrams.")
+    finetune_parser = subparsers.add_parser("finetune", help="Finetune embeddings.")
+    dataset_parser = subparsers.add_parser(
+        "dataset", help="Generate finetuning dataset."
+    )
 
-    train_parser.add_argument(
-        "--source",
-        help="Path to RecipeNLG dataset csv.",
-        type=str,
-        dest="source",
-        default=None,
+    finetune_parser.add_argument(
+        "--dataset",
+        help="Path to dataset directory.",
+        type=Path,
+        dest="dataset",
     )
-    train_parser.add_argument(
-        "--training-file",
-        help="Path to text file of preprocessed recipes for model training.",
-        type=str,
-        dest="training",
-        default=None,
-    )
-    train_parser.add_argument(
+    finetune_parser.add_argument(
         "--model",
-        help="Path to save embeddings model to.",
-        type=str,
+        help="Path to save fine tuned model to.",
+        type=Path,
         dest="model",
-        default="ingredient_embeddings",
     )
-    train_parser.add_argument(
-        "--bigrams",
-        help="Path to bigrams CSV file.",
-        type=str,
-        dest="bigrams",
-        default=None,
-    )
-    train_parser.add_argument(
-        "--preprocess-only",
-        help="Perform preprocessing steps without training embeddings model.",
-        action="store_true",
-        dest="preprocess",
-    )
-    train_parser.add_argument(
-        "--seed",
-        default=None,
-        type=int,
-        help="Seed value used for train/test split.",
-    )
-    train_parser.add_argument(
-        "--dim", help="Vector dimensions.", type=int, dest="dim", default=300
+    finetune_parser.add_argument(
+        "--onnx",
+        help="Path to save onnx exported model to.",
+        type=Path,
+        dest="onnx",
     )
 
-    bigram_parser.add_argument(
+    dataset_parser.add_argument(
         "--source",
-        help="Path to RecipeNLG dataset csv.",
-        type=str,
+        help="Path to recipes-en-201706 database.",
+        type=Path,
         dest="source",
-        default=None,
     )
-    bigram_parser.add_argument(
+    dataset_parser.add_argument(
         "--output",
-        help="Path to save bigrams to.",
-        type=str,
+        help="Path to save dataset to.",
+        type=Path,
         dest="output",
-        default="bigrams.csv",
     )
     args = parser.parse_args()
 
-    if args.command == "embeddings":
-        generate_embeddings(args)
-    elif args.command == "bigrams":
-        generate_bigrams(args)
+    if args.command == "dataset":
+        generate_dataset(args.source, Path(""), args.output)
+    elif args.command == "finetune":
+        fine_tune_embeddings(args.dataset, args.model, args.onnx)

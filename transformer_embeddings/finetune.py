@@ -2,19 +2,21 @@
 
 import gc
 import os
+from pathlib import Path
 from typing import Generator
 
+import sentence_transformers.sentence_transformer.losses as losses
 import torch
 from datasets import Dataset
+from optimum.onnxruntime import ORTModelForFeatureExtraction, ORTQuantizer
+from optimum.onnxruntime.configuration import AutoQuantizationConfig
 from sentence_transformers import (
     SentenceTransformer,
     SentenceTransformerTrainer,
     SentenceTransformerTrainingArguments,
 )
-import sentence_transformers.sentence_transformer.losses as losses
-from optimum.onnxruntime import ORTQuantizer, ORTModelForFeatureExtraction
-from optimum.onnxruntime.configuration import AutoQuantizationConfig
-from transformers import AutoTokenizer
+from tqdm import tqdm
+from transformers import AutoModel, AutoTokenizer, BertTokenizerFast
 
 TrainingSentence = dict[str, str | list[float]]
 
@@ -81,7 +83,9 @@ class FineTuneMdbrLeafMT:
             torch.cuda.empty_cache()
 
     def generate_training_dataset(
-        self, corpus: list[str], output_directory: str = "data/bert_training_data"
+        self,
+        corpus: list[str],
+        output_directory: Path = Path("data/bert_training_data/"),
     ) -> Dataset:
         """Generate training dataset and save to output directory
 
@@ -115,8 +119,8 @@ class FineTuneMdbrLeafMT:
     def fine_tune(
         self,
         training_dataset: Dataset,
-        checkpoint_directory: str = "leaf_training_output",
-        output_model: str = "ingredient-leaf-mt",
+        checkpoint_directory: os.PathLike = Path("leaf_training_output"),
+        output_model: os.PathLike = Path("ingredient-leaf-mt"),
         use_checkpoint: bool = False,
     ):
         """Fine tune student model using teacher model and provided training dataset.
@@ -125,9 +129,9 @@ class FineTuneMdbrLeafMT:
         ----------
         training_dataset : Dataset
             Training dataset used to fine tune student model.
-        output_directory : str, optional
-            Output directory for checkpoints.
-        output_model : str, optional
+        checkpoint_directory : os.PathLike, optional
+            Directory for checkpoints.
+        output_model : os.PathLike, optional
             Directory for fine-tuned model.
         use_checkpoint : bool, optional
             If True and a checkpoint exists, continue training from checkpoint.
@@ -136,7 +140,7 @@ class FineTuneMdbrLeafMT:
         train_loss = losses.MSELoss(model=student_model)
 
         training_args = SentenceTransformerTrainingArguments(
-            output_dir=checkpoint_directory,
+            output_dir=str(checkpoint_directory),
             num_train_epochs=1,
             per_device_train_batch_size=8,
             warmup_ratio=0.1,
@@ -161,26 +165,31 @@ class FineTuneMdbrLeafMT:
         )
         if use_checkpoint and has_checkpoint:
             print(
-                f"Interruption detected! Resuming training from last checkpoint in {checkpoint_directory}"
+                (
+                    "Interruption detected! Resuming training from last checkpoint "
+                    f"in {checkpoint_directory}"
+                )
             )
             trainer.train(resume_from_checkpoint=True)
         else:
             print("Starting fresh fine-tuning run.")
             trainer.train()
 
-        student_model.save_pretrained(output_model)
+        student_model.save_pretrained(str(output_model))
         print("Knowledge distillation complete using an in-memory dataset!")
 
-    def prune_vocabulary(self, corpus: list[str], model_path: os.PathLike, output_model: str):
+    def prune_vocabulary(
+        self, corpus: list[str], model_path: os.PathLike, output_model: os.PathLike
+    ):
         """Prune model vocabulary by removing tokens that do appear in specified corpus.
-        
+
         Parameters
         ----------
         corpus : list[str]
             Corpus of recipe ingredient and instruction sentences.
         model_path : os.PathLike
             Path to existing directory containing model to prune.
-        output_model : str
+        output_model : os.PathLike
             Directory to save prune model to.
         """
         os.makedirs(output_model, exist_ok=True)
@@ -195,7 +204,8 @@ class FineTuneMdbrLeafMT:
         special_ids = set(tokenizer.all_special_ids)
         # Retain single-character tokens as fallback for unseen words
         single_char_ids = {
-            idx for token, idx in vocab.items()
+            idx
+            for token, idx in vocab.items()
             if len(token) == 1 or (token.startswith("##") and len(token) == 3)
         }
 
@@ -212,7 +222,7 @@ class FineTuneMdbrLeafMT:
         print(
             (
                 f"Pruned Vocabulary Size:   {new_vocab_size} "
-                f"({((1 - new_vocab_size/len(vocab)) * 100):.1f}% reduction)"
+                f"({((1 - new_vocab_size / len(vocab)) * 100):.1f}% reduction)"
             )
         )
 
@@ -236,24 +246,24 @@ class FineTuneMdbrLeafMT:
 
         pruned_tokenizer = BertTokenizerFast(
             vocab_file=vocab_file_path,
-            do_lower_case=getattr(tokenizer, "do_lower_case", True)
+            do_lower_case=getattr(tokenizer, "do_lower_case", True),
         )
         pruned_tokenizer.save_pretrained(output_model)
 
         # Do some verification? Assert something?
 
-    def export_onnx(self, model_directory: str, onnx_directory: str):
+    def export_onnx(self, model_directory: os.PathLike, onnx_directory: os.PathLike):
         """Export model to ONNX format.
 
         Parameters
         ----------
-        model_directory : str
+        model_directory : os.PathLike
             Directory containing fine-tuned model.
-        onnx_directory : str
+        onnx_directory : os.PathLike
             Directory to save ONNX model and tokenizer to.
         """
         model = ORTModelForFeatureExtraction.from_pretrained(
-            model_directory,
+            str(model_directory),
             export=True,
         )
         # Save graph and configuration structures
@@ -262,7 +272,7 @@ class FineTuneMdbrLeafMT:
         tokenizer = AutoTokenizer.from_pretrained(model_directory)
         tokenizer.save_pretrained(onnx_directory)
 
-    def quantize_onnx(self, onnx_directory: str, onnx_model_name: str):
+    def quantize_onnx(self, onnx_directory: os.PathLike, onnx_model_name: str):
         """Quantize ONNX model to optimize for CPU deployment.
 
         Parameters
@@ -273,7 +283,7 @@ class FineTuneMdbrLeafMT:
             Name of ONNX model within onnx_directory.
         """
         quantizer = ORTQuantizer.from_pretrained(
-            onnx_directory, file_name=onnx_model_name
+            str(onnx_directory), file_name=onnx_model_name
         )
 
         # Use standard Dynamic Quantization (ideal for CPU deployment)
@@ -281,7 +291,7 @@ class FineTuneMdbrLeafMT:
 
         # Export the highly compressed 45MB model file
         quantizer.quantize(
-            save_dir=onnx_directory,
+            save_dir=str(onnx_directory),
             quantization_config=qconfig,
             file_suffix="quantized",
         )
