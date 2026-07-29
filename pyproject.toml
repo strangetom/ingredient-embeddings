@@ -1,0 +1,37 @@
+[tool.ruff]
+exclude = [
+    "**/__pycache__",
+    ".git",
+    "venv",
+    "notebooks"
+]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "PERF", "PT", "RUF"]
+ignore = [
+    "E402",   # To enable path to be modified in doc conf.py before import
+]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.pyright]
+include = ["ingredient_parser", "train"]
+exclude = ["**/__pycache__", "venv", "tests", "webtools"]
+reportUnusedImport = true
+reportUnusedClass = true
+reportUnusedFunction = true
+reportUnusedVariable = true
+reportWildcardImportFromLibrary = true
+reportPrivateUsage = true
+
+[tool.numpydoc_validation]
+checks = [
+    "all",   # report on all checks, except the below
+    "GL01",
+    "GL08",
+    "ES01",
+    "SA01",
+    "EX01",
+]
