@@ -171,6 +171,77 @@ class FineTuneMdbrLeafMT:
         student_model.save_pretrained(output_model)
         print("Knowledge distillation complete using an in-memory dataset!")
 
+    def prune_vocabulary(self, corpus: list[str], model_path: os.PathLike, output_model: str):
+        """Prune model vocabulary by removing tokens that do appear in specified corpus.
+        
+        Parameters
+        ----------
+        corpus : list[str]
+            Corpus of recipe ingredient and instruction sentences.
+        model_path : os.PathLike
+            Path to existing directory containing model to prune.
+        output_model : str
+            Directory to save prune model to.
+        """
+        os.makedirs(output_model, exist_ok=True)
+
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        model = AutoModel.from_pretrained(model_path)
+
+        vocab = tokenizer.get_vocab()
+        id_to_token = {v: k for k, v in vocab.items()}
+
+        # Always keep mandatory special tokens ([PAD], [CLS], [SEP], [UNK], [MASK])
+        special_ids = set(tokenizer.all_special_ids)
+        # Retain single-character tokens as fallback for unseen words
+        single_char_ids = {
+            idx for token, idx in vocab.items()
+            if len(token) == 1 or (token.startswith("##") and len(token) == 3)
+        }
+
+        # Collect token IDs used across your domain corpus
+        used_ids = set()
+        for text in tqdm(corpus):
+            encoded = tokenizer.encode(text, add_special_tokens=False)
+            used_ids.update(encoded)
+
+        # Combine and sort retained IDs to maintain deterministic ordering
+        retained_old_ids = sorted(list(special_ids | used_ids | single_char_ids))
+        new_vocab_size = len(retained_old_ids)
+        print(f"Original Vocabulary Size: {len(vocab)}")
+        print(
+            (
+                f"Pruned Vocabulary Size:   {new_vocab_size} "
+                f"({((1 - new_vocab_size/len(vocab)) * 100):.1f}% reduction)"
+            )
+        )
+
+        # Slice embedding weights to discard weights for vocab not retained.
+        old_embedding_weights = model.get_input_embeddings().weight.data
+        new_embedding_weights = old_embedding_weights[retained_old_ids]
+
+        # Resize embedding layer and re-assign sliced weight tensor
+        model.resize_token_embeddings(new_vocab_size)
+        model.get_input_embeddings().weight.data = new_embedding_weights
+        model.config.vocab_size = new_vocab_size
+
+        # Write pruned model, tokenizer and vocab
+        vocab_file_path = os.path.join(output_model, "vocab.txt")
+        retained_tokens = [id_to_token[old_id] for old_id in retained_old_ids]
+        with open(vocab_file_path, "w", encoding="utf-8") as f:
+            for token in retained_tokens:
+                f.write(f"{token}\n")
+
+        model.save_pretrained(output_model)
+
+        pruned_tokenizer = BertTokenizerFast(
+            vocab_file=vocab_file_path,
+            do_lower_case=getattr(tokenizer, "do_lower_case", True)
+        )
+        pruned_tokenizer.save_pretrained(output_model)
+
+        # Do some verification? Assert something?
+
     def export_onnx(self, model_directory: str, onnx_directory: str):
         """Export model to ONNX format.
 
